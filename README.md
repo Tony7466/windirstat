@@ -67,11 +67,19 @@ WinDirStat 2.x has been developed for and tested on the following operating syst
 
 The logo was generously designed and contributed to the project by Robin "tuqueque" Marín. Follow him on Twitter/X [@tuquequeorg](https://twitter.com/tuquequeorg).
 
-## Resources
+## Alternatives
 
-* A [website](https://windirstat.net/)
-* A [blog](https://blog.windirstat.net/)
+If you are looking for other opensource alternatives to WinDirStat for Windows or other operating systems, please checkout the links below. If you'd like your opensource project to be added to this list, please contact us.
+
+MacOS: [GrandPerspective](https://grandperspectiv.sourceforge.net/)
+Linux: [QDirStat](https://github.com/shundhammer/qdirstat)
+Windows: [SpaceSnipper](https://github.com/redtrillix/SpaceSniffer)
+
+## Community
+
+* [WinDirState homepage](https://windirstat.net/)
+* [WinDirStat blog](https://blog.windirstat.net/)
 * Twitter/X as [@windirstat](https://x.com/windirstat)
 * SubReddit [r/WinDirStat](https://www.reddit.com/r/WinDirStat/)
 
-Find a more up-to-date list of resources on the website and the blog at any point in time.
+Find a more up-to-date list of resources on the [website](https://windirstat.net/) and the [blog](https://blog.windirstat.net/) at any point in time.
