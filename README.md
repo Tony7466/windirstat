@@ -4,6 +4,9 @@
 
 WinDirStat is a program that allows you to find drive space hogs at a glance. It achieves that by displaying a drive, drives or directories in a [treemap](https://en.wikipedia.org/wiki/Treemap) that assigns bigger areas to bigger files and directories. Making those areas visually separate by coloring and other means allows you to see literally at a glance what the space hogs are and where to dig deeper.
 
+![image](https://github.com/user-attachments/assets/d22de6b5-c292-497d-a0da-c4c7c2a10eae)
+
+
 The directory tree is simultaneously shown as a tree list and as a treemap. One can effortlessly gain an impression of the proportions on the drive(s).
 
 For more information on the background of WinDirStat and alternative versions on other operating systems, please visit the [WinDirStat website](https://windirstat.net/)
