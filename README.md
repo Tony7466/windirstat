@@ -72,7 +72,9 @@ The logo was generously designed and contributed to the project by Robin "tuqueq
 If you are looking for other opensource alternatives to WinDirStat for Windows or other operating systems, please checkout the links below. If you'd like your opensource project to be added to this list, please contact us.
 
 MacOS: [GrandPerspective](https://grandperspectiv.sourceforge.net/)
+
 Linux: [QDirStat](https://github.com/shundhammer/qdirstat)
+
 Windows: [SpaceSnipper](https://github.com/redtrillix/SpaceSniffer)
 
 ## Community
