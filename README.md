@@ -80,6 +80,28 @@ Linux: [QDirStat](https://github.com/shundhammer/qdirstat)
 
 Windows: [SpaceSnipper](https://github.com/redtrillix/SpaceSniffer)
 
+## Downloads
+[Intel 64-Bit MSI Installer](https://github.com/windirstat/windirstat/releases/download/release/v2.2.0/WinDirStat-x64.msi)
+
+[Intel 32-Bit MSI Installer](https://github.com/windirstat/windirstat/releases/download/release/v2.2.0/WinDirStat-x86.msi) 
+
+[ARM 64-Bit MSI Installer](https://github.com/windirstat/windirstat/releases/download/release/v2.2.0/WinDirStat-arm64.msi)
+
+[ARM 32-Bit MSI Installer](https://github.com/windirstat/windirstat/releases/download/release/v2.2.0/WinDirStat-arm.msi)
+
+[Zipped Executables](https://github.com/windirstat/windirstat/releases/download/release/v2.2.0/WinDirStat.zip)
+
+[Zipped Executables (7-Zip)](https://github.com/windirstat/windirstat/releases/download/release/v2.2.0/WinDirStat.7z)
+
+[File Hashes](https://github.com/windirstat/windirstat/releases/download/release/v2.2.0/WinDirStat-Hashes.txt)
+
+You may also install it with:
+
+📦 winget install -e --id WinDirStat.WinDirStat (or use winget upgrade subsequently)
+
+📦 scoop install extras/windirstat (requires scoop bucket add extras)
+
+
 ## Community
 
 * [Website](https://windirstat.net/)
