@@ -77,8 +77,8 @@ Windows: [SpaceSnipper](https://github.com/redtrillix/SpaceSniffer)
 
 ## Community
 
-* [WinDirState homepage](https://windirstat.net/)
-* [WinDirStat blog](https://blog.windirstat.net/)
+* [Website](https://windirstat.net/)
+* [Blog](https://blog.windirstat.net/)
 * Twitter/X as [@windirstat](https://x.com/windirstat)
 * SubReddit [r/WinDirStat](https://www.reddit.com/r/WinDirStat/)
 
