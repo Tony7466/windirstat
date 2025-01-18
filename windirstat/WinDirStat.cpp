@@ -179,7 +179,7 @@ COLORREF CDirStatApp::AltEncryptionColor() const
 std::wstring CDirStatApp::GetCurrentProcessMemoryInfo()
 {
     // Fetch current working set
-    PROCESS_MEMORY_COUNTERS pmc = { sizeof(pmc) };
+    PROCESS_MEMORY_COUNTERS pmc = { .cb = sizeof(pmc) };
     if (!::GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
     {
         return wds::strEmpty;
@@ -264,6 +264,11 @@ BOOL CDirStatApp::InitInstance()
     (void)AfxOleInit();
     AfxEnableControlContainer();
     (void)AfxInitRichEdit2();
+
+    // Initialize GPI Plus
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR gdiplusToken;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
 
     // If a local config file is available, use that for settings
     SetPortableMode(true, true);

@@ -32,16 +32,17 @@ class CFileDupeControl final : public CTreeListControl
 {
 public:
     CFileDupeControl();
+    ~CFileDupeControl() override { m_Singleton = nullptr; }
     bool GetAscendingDefault(int column) override;
     static CFileDupeControl* Get() { return m_Singleton; }
-    void SetRootItem(CTreeListItem* root) override;
     void ProcessDuplicate(CItem* item, BlockingQueue<CItem*>* queue);
     void RemoveItem(CItem* items);
     void SortItems() override;
 
     std::shared_mutex m_HashTrackerMutex;
     std::map<ULONGLONG, std::vector<CItem*>> m_SizeTracker;
-    std::map<std::vector<BYTE>, std::vector<CItem*>> m_HashTracker;
+    std::map<std::vector<BYTE>, std::vector<CItem*>> m_HashTrackerSmall;
+    std::map<std::vector<BYTE>, std::vector<CItem*>> m_HashTrackerLarge;
     
     std::shared_mutex m_NodeTrackerMutex;
     std::map<std::vector<BYTE>, CItemDupe*> m_NodeTracker;
@@ -50,6 +51,7 @@ public:
 
 protected:
 
+    static constexpr auto m_PartialBufferSize = 128ull * 1024ull;
     static CFileDupeControl* m_Singleton;
     bool m_ShowCloudWarningOnThisScan = false;
     
@@ -58,4 +60,5 @@ protected:
     DECLARE_MESSAGE_MAP()
     afx_msg void OnSetFocus(CWnd* pOldWnd);
     afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+    afx_msg BOOL OnDeleteAllItems(NMHDR* pNMHDR, LRESULT* pResult);
 };

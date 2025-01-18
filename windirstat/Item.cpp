@@ -37,6 +37,7 @@
 #include <shared_mutex>
 #include <stack>
 #include <array>
+#include <ranges>
 
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
@@ -51,7 +52,7 @@ CItem::CItem(const ITEMTYPE type, const std::wstring & name) : m_Name(name), m_T
         m_Attributes = GetFileAttributesW(GetPathLong().c_str());
     }
 
-    if (!IsType(IT_FILE))
+    if (IsType(IT_MYCOMPUTER | IT_DRIVE | IT_DIRECTORY))
     {
         m_FolderInfo = std::make_unique<CHILDINFO>();
     }
@@ -718,7 +719,7 @@ void CItem::UpwardUpdateLastChange(const FILETIME& t)
 {
     for (auto p = this; p != nullptr; p = p->GetParent())
     {
-        if (CompareFileTime(&t, &p->m_LastChange) == 1) p->m_LastChange = t;
+        if (FileTimeIsGreater(t, p->m_LastChange)) p->m_LastChange = t;
     }
 }
 
@@ -732,7 +733,7 @@ void CItem::UpwardRecalcLastChange(const bool withoutItem)
         for (const auto& child : p->GetChildren())
         {
             if (withoutItem && child == this) continue;
-            if (CompareFileTime(&child->m_LastChange, &p->m_LastChange) == 1)
+            if (FileTimeIsGreater(child->m_LastChange, p->m_LastChange))
                 p->m_LastChange = child->m_LastChange;
         }
     }
@@ -1305,22 +1306,31 @@ COLORREF CItem::GetPercentageColor() const
 
 std::wstring CItem::UpwardGetPathWithoutBackslash() const
 {
-    // allow persistent storage to prevent constant reallocation
-    std::wstring path = L"\\";
-
+    // create vector of the path structure so we can reverse it
+    std::vector<const CItem*> pathParts;
+    std::size_t estSize = 0;
     for (auto p = this; p != nullptr; p = p->GetParent())
+    {
+        pathParts.emplace_back(p);
+        estSize += p->m_Name.length() + 1;
+    }
+
+    // append the strings in reverse order
+    std::wstring path;
+    path.reserve(estSize);
+    for (const auto & p : pathParts | std::views::reverse)
     {
         if (p->IsType(IT_DIRECTORY))
         {
-            path.insert(0, p->m_Name + L"\\");
+            path.append(p->m_Name).append(L"\\");
         }
         else if (p->IsType(IT_FILE))
         {
-            path = p->m_Name;
+            path.append(p->m_Name);
         }
         else if (p->IsType(IT_DRIVE))
         {
-            path.insert(0, p->m_Name.substr(0, 2) + L"\\");
+            path.append(p->m_Name.substr(0, 2)).append(L"\\");
         }
     }
 
@@ -1399,9 +1409,9 @@ std::vector<BYTE> CItem::GetFileHash(ULONGLONG hashSizeLimit, BlockingQueue<CIte
         }
     }
 
-    // Open file for reading
-    SmartPointer<HANDLE> hFile(CloseHandle, CreateFile(GetPathLong().c_str(), GENERIC_READ,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+    // Open file for reading - avoid files that are actively being written to
+    SmartPointer<HANDLE> hFile(CloseHandle, CreateFile(GetPathLong().c_str(), 
+        GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -1430,10 +1440,11 @@ std::vector<BYTE> CItem::GetFileHash(ULONGLONG hashSizeLimit, BlockingQueue<CIte
         return {};
     }
 
-    // We halve the hash since the level of uniqueness of SHA512 to save
-    // time and memory when comparing hash values.  This is better than
-    // just using SHA256 because SHA512 is faster on Windows. 
-    Hash.resize(m_HashLength / 2);
+    // We reduce the size of the stored hash since the level of uniqueness required
+    // is unnecessary for simple dupe checking. This is preferred to just using a simpler
+    // hash alg since SHA512 is FIPS complaint on Windows and more performant than SHA256.
+    constexpr auto ReducedHashInBytes = 16;
+    Hash.resize(ReducedHashInBytes);
     Hash.shrink_to_fit();
     return Hash;
 }

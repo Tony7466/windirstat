@@ -46,6 +46,7 @@ bool CFileTopControl::GetAscendingDefault(const int column)
 BEGIN_MESSAGE_MAP(CFileTopControl, CTreeListControl)
     ON_WM_SETFOCUS()
     ON_WM_KEYDOWN()
+    ON_NOTIFY_REFLECT_EX(LVN_DELETEALLITEMS, OnDeleteAllItems)
 END_MESSAGE_MAP()
 #pragma warning(pop)
 
@@ -70,10 +71,10 @@ void CFileTopControl::SortItems()
     // Reverse iterate over the multimap
     m_SizeMutex.lock();
     std::unordered_set<CItem*> largestItems;
-    for (auto & pair : m_SizeMap | std::views::reverse)
+    largestItems.reserve(COptions::LargeFileCount);
+    for (auto& pItem : m_SizeMap | std::views::reverse | std::views::take(COptions::LargeFileCount.Obj()))
     {
-        largestItems.insert(pair);
-        if (static_cast<int>(largestItems.size()) >= COptions::LargeFileCount) break;
+        largestItems.emplace(pItem);
     }
     m_SizeMutex.unlock();
 
@@ -140,14 +141,15 @@ void CFileTopControl::OnItemDoubleClick(const int i)
     }
 }
 
-void CFileTopControl::SetRootItem(CTreeListItem* root)
+BOOL CFileTopControl::OnDeleteAllItems(NMHDR*, LRESULT* pResult)
 {
-    // Cleanup visual list
-    CTreeListControl::SetRootItem(root);
-
     // Reset trackers
     m_SizeMap.clear();
     m_ItemTracker.clear();
+
+    // Allow delete to proceed
+    *pResult = FALSE;
+    return FALSE;
 }
 
 void CFileTopControl::OnSetFocus(CWnd* pOldWnd)

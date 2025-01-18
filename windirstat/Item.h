@@ -57,8 +57,9 @@ enum ITEMTYPE : unsigned short
     IT_ANY        = 0x00FF,  // Indicates any item type
     ITF_DONE      = 1 << 8,  // Indicates done processing
     ITF_ROOTITEM  = 1 << 9,  // Indicates root item
-    ITF_PARTHASH  = 1 << 10, // Indicates a partial hash
-    ITF_FULLHASH  = 1 << 11, // Indicates a full hash
+    ITF_SKIPHASH  = 1 << 10, // Indicates cannot be hased (unreadable)
+    ITF_PARTHASH  = 1 << 11, // Indicates a partial hash
+    ITF_FULLHASH  = 1 << 12, // Indicates a full hash
     ITF_FLAGS     = 0xFF00,  // All potential flag items
 };
 
@@ -247,6 +248,12 @@ public:
     {
         if (set) m_Type = m_Type | type;
         else m_Type = m_Type - type;
+    }
+
+    static constexpr bool FileTimeIsGreater(const FILETIME& ft1, const FILETIME& ft2)
+    {
+        return (static_cast<QWORD>(ft1.dwHighDateTime) << 32 | (ft1.dwLowDateTime)) >
+            (static_cast<QWORD>(ft2.dwHighDateTime) << 32 | (ft2.dwLowDateTime));
     }
 
 private:

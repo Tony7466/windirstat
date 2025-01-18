@@ -690,7 +690,8 @@ void CTreeListControl::ExpandItem(const int i, const bool scroll)
     SetRedraw(FALSE);
     LockWindowUpdate();
     int maxwidth = GetSubItemWidth(item, 0);
-    for (int c = 0; c < item->GetTreeListChildCount(); c++)
+    const auto childItems = item->GetTreeListChildCount();
+    for (int c = 0; c < childItems; c++)
     {
         CTreeListItem* child = item->GetTreeListChild(c);
         InsertItem(i + 1 + c, child);
@@ -703,8 +704,8 @@ void CTreeListControl::ExpandItem(const int i, const bool scroll)
             maxwidth = max(maxwidth, GetSubItemWidth(child, 0));
         }
     }
+    if (childItems > 0) SortItems();
     UnlockWindowUpdate();
-    SortItems();
     SetRedraw(TRUE);
 
     if (scroll && GetColumnWidth(0) < maxwidth)
@@ -807,7 +808,7 @@ void CTreeListControl::OnChildAdded(const CTreeListItem* parent, CTreeListItem* 
 
     const int p = FindTreeItem(parent);
     ASSERT(p != -1);
-    InsertItem(p + GetItem(p)->GetTreeListChildCount(), child);
+    InsertItem(p + parent->GetTreeListChildCount(), child);
 }
 
 void CTreeListControl::OnChildRemoved(const CTreeListItem* parent, CTreeListItem* child)
