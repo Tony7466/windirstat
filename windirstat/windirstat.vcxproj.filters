@@ -111,12 +111,21 @@
     <None Include="res\langs\lang_hk.bin">
       <Filter>Resource Files\Languages</Filter>
     </None>
+    <None Include="res\langs\lang_sv.bin">
+      <Filter>Resource Files\Languages</Filter>
+    </None>
+    <None Include="res\langs\lang_ja.bin">
+      <Filter>Resource Files\Languages</Filter>
+    </None>
+    <None Include="res\langs\lang_tr.bin">
+      <Filter>Resource Files\Languages</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DirStatDoc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="FileFind.h">
+    <ClInclude Include="FinderBasic.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GlobalHelpers.h">
@@ -134,9 +143,6 @@
     <ClInclude Include="ModalApiShuttle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MountPoints.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Options.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -150,9 +156,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Dialogs\AboutDlg.h">
-      <Filter>Header Files\Dialogs</Filter>
-    </ClInclude>
-    <ClInclude Include="Dialogs\DeleteWarningDlg.h">
       <Filter>Header Files\Dialogs</Filter>
     </ClInclude>
     <ClInclude Include="Dialogs\SelectDrivesDlg.h">
@@ -272,6 +275,33 @@
     <ClInclude Include="Views\TreeMapView.h">
       <Filter>Header Files\Views</Filter>
     </ClInclude>
+    <ClInclude Include="Finder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FinderNtfs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Dialogs\SearchDlg.h">
+      <Filter>Header Files\Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="Controls\FileSearchControl.h">
+      <Filter>Header Files\Controls</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemSearch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\FileSearchView.h">
+      <Filter>Header Files\Views</Filter>
+    </ClInclude>
+    <ClInclude Include="res\LangStrings.h">
+      <Filter>Resource Files\Languages</Filter>
+    </ClInclude>
+    <ClInclude Include="Dialogs\MessageBoxDlg.h">
+      <Filter>Header Files\Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="DarkMode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DirStatDoc.cpp">
@@ -292,9 +322,6 @@
     <ClCompile Include="ModalApiShuttle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MountPoints.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Options.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -307,13 +334,10 @@
     <ClCompile Include="Dialogs\AboutDlg.cpp">
       <Filter>Source Files\Dialogs</Filter>
     </ClCompile>
-    <ClCompile Include="Dialogs\DeleteWarningDlg.cpp">
-      <Filter>Source Files\Dialogs</Filter>
-    </ClCompile>
     <ClCompile Include="Dialogs\SelectDrivesDlg.cpp">
       <Filter>Source Files\Dialogs</Filter>
     </ClCompile>
-    <ClCompile Include="FileFind.cpp">
+    <ClCompile Include="FinderBasic.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Localization.cpp">
@@ -403,6 +427,27 @@
     <ClCompile Include="Controls\ColorButton.cpp">
       <Filter>Source Files\Controls</Filter>
     </ClCompile>
+    <ClCompile Include="FinderNtfs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Dialogs\SearchDlg.cpp">
+      <Filter>Source Files\Dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="Controls\FileSearchControl.cpp">
+      <Filter>Source Files\Controls</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemSearch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\FileSearchView.cpp">
+      <Filter>Source Files\Views</Filter>
+    </ClCompile>
+    <ClCompile Include="DarkMode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Dialogs\MessageBoxDlg.cpp">
+      <Filter>Source Files\Dialogs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="windirstat.rc">
@@ -485,6 +530,12 @@
     <Image Include="res\toolbar\IDB_FILTER.bmp">
       <Filter>Resource Files\Resources</Filter>
     </Image>
+    <Image Include="res\toolbar\IDB_SEARCH.bmp">
+      <Filter>Resource Files\Resources</Filter>
+    </Image>
+    <Image Include="res\IDB_NODES_INVERT.bmp">
+      <Filter>Resource Files\Resources</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <Text Include="res\langs\lang_et.txt">
@@ -536,6 +587,15 @@
       <Filter>Resource Files\Languages</Filter>
     </Text>
     <Text Include="res\langs\lang_hk.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_sv.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_ja.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_tr.txt">
       <Filter>Resource Files\Languages</Filter>
     </Text>
   </ItemGroup>

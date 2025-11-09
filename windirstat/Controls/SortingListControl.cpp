@@ -1,26 +1,25 @@
-﻿// SortingListControl.cpp - Implementation of CSortingListItem and CSortingListControl
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
 #include "WinDirStat.h"
 #include "SortingListControl.h"
+
+#include <array>
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -152,40 +151,53 @@ void CSortingListControl::InsertListItem(const int i, CSortingListItem* item)
     VERIFY(i == CListCtrl::InsertItem(&lvitem));
 }
 
+/*
+ * Sorts the list control's items and updates the header to display the correct sorting indicator.
+ * This method reorders the list control's items based on the current sorting column and direction.
+ * It then updates the header control by using native Windows header flags (HDF_SORTUP and HDF_SORTDOWN)
+ * to display a platform-consistent sorting arrow. This approach is superior to manually
+ * changing the header text with Unicode characters, which caused visual misalignment.
+ */
 void CSortingListControl::SortItems()
 {
+    // Reorder the list items based on the current sorting criteria using a lambda comparison function.
     VERIFY(CListCtrl::SortItems([](LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort) {
         const CSortingListItem* item1 = reinterpret_cast<CSortingListItem*>(lParam1);
         const CSortingListItem* item2 = reinterpret_cast<CSortingListItem*>(lParam2);
         const SSorting* sorting = reinterpret_cast<SSorting*>(lParamSort);
         return item1->CompareSort(item2, *sorting); }, reinterpret_cast<DWORD_PTR>(&m_Sorting)));
 
-    if (m_IndicatedColumn != -1)
+    CHeaderCtrl* pHeaderCtrl = GetHeaderCtrl();
+    
+    // Exit if the header control is unavailable, to prevent a null pointer crash.
+    if (pHeaderCtrl == nullptr)
     {
-        HDITEM hditem;
-        std::wstring text;
-        text.resize(256);
-        hditem.mask = HDI_TEXT;
-        hditem.pszText = text.data();
-        hditem.cchTextMax = static_cast<int>(text.size());
-        GetHeaderCtrl()->GetItem(m_IndicatedColumn, &hditem);
-        text.resize(wcslen(text.data()));
-        text = text.substr(2);
-        hditem.pszText = text.data();
-        GetHeaderCtrl()->SetItem(m_IndicatedColumn, &hditem);
+        return;
     }
 
     HDITEM hditem;
-    std::wstring text;
-    text.resize(256);
-    hditem.mask = HDI_TEXT;
-    hditem.pszText = text.data();
-    hditem.cchTextMax = static_cast<int>(text.size());
-    GetHeaderCtrl()->GetItem(m_Sorting.column1, &hditem);
-    text.resize(wcslen(text.data()));
-    text = (m_Sorting.ascending1 ? L"↑ " : L"↓ ") + text;
-    hditem.pszText = text.data();
-    GetHeaderCtrl()->SetItem(m_Sorting.column1, &hditem);
+    hditem.mask = HDI_FORMAT;
+
+    // Remove the sort indicator from the previously sorted column if one exists.
+    if (m_IndicatedColumn != -1)
+    {
+        pHeaderCtrl->GetItem(m_IndicatedColumn, &hditem);
+        // Use a bitwise operation to clear both the UP and DOWN sort flags.
+        hditem.fmt &= ~(HDF_SORTUP | HDF_SORTDOWN);
+        pHeaderCtrl->SetItem(m_IndicatedColumn, &hditem);
+    }
+
+    // Retrieve the newly sorted column's current format flags.
+    pHeaderCtrl->GetItem(m_Sorting.column1, &hditem);
+    // Clear any existing sort flags to ensure a clean state before applying the new one.
+    hditem.fmt &= ~(HDF_SORTUP | HDF_SORTDOWN); 
+
+    // Apply the correct native sorting indicator based on the sort direction using a ternary operator.
+    hditem.fmt |= m_Sorting.ascending1 ? HDF_SORTUP : HDF_SORTDOWN;
+
+    pHeaderCtrl->SetItem(m_Sorting.column1, &hditem);
+
+    // Store the current sorted column's index to be cleared next time.
     m_IndicatedColumn = m_Sorting.column1;
 }
 
@@ -194,15 +206,12 @@ bool CSortingListControl::GetAscendingDefault(int /*column*/)
     return true;
 }
 
-#pragma warning(push)
-#pragma warning(disable:26454)
 BEGIN_MESSAGE_MAP(CSortingListControl, CListCtrl)
     ON_NOTIFY_REFLECT(LVN_GETDISPINFO, OnLvnGetDispInfo)
     ON_NOTIFY(HDN_ITEMCLICK, 0, OnHdnItemClick)
     ON_NOTIFY(HDN_ITEMDBLCLICK, 0, OnHdnItemDblClick)
     ON_WM_DESTROY()
 END_MESSAGE_MAP()
-#pragma warning(pop)
 
 void CSortingListControl::OnLvnGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 {
@@ -216,7 +225,7 @@ void CSortingListControl::OnLvnGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
         // The passed subitem value is actually the column id so translate it
         const int subitem = ColumnToSubItem(displayInfo->item.iSubItem);
 
-        // Copy maximum allowed to the provided puffer 
+        // Copy maximum allowed to the provided buffer
         wcsncpy_s(displayInfo->item.pszText, displayInfo->item.cchTextMax,
             item->GetText(subitem).c_str(), displayInfo->item.cchTextMax - 1);
     }

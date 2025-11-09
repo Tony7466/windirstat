@@ -1,21 +1,18 @@
-// GlobalHelpers.cpp - Implementation of global helper functions
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -24,20 +21,20 @@
 #include "GlobalHelpers.h"
 #include "Options.h"
 #include "Localization.h"
-#include "FileFind.h"
+#include "FinderBasic.h"
 
 #include <array>
 #include <algorithm>
 #include <regex>
 #include <map>
 
-#pragma comment(lib,"powrprof.lib") 
+#pragma comment(lib,"powrprof.lib")
 #pragma comment(lib,"ntdll.lib")
 
 EXTERN_C NTSTATUS NTAPI RtlDecompressBuffer(USHORT CompressionFormat, PUCHAR UncompressedBuffer, ULONG  UncompressedBufferSize,
     PUCHAR CompressedBuffer, ULONG  CompressedBufferSize, PULONG FinalUncompressedSize);
 
-std::wstring FormatLongLongNormal(ULONGLONG n)
+static std::wstring FormatLongLongNormal(ULONGLONG n)
 {
     // Returns formatted number like "123.456.789".
 
@@ -107,8 +104,7 @@ std::wstring FormatBytes(const ULONGLONG& n)
         return FormatSizeSuffixes(n);
     }
 
-    return FormatLongLongNormal(n);
-
+    return FormatLongLongNormal(n) + L" " + GetSpec_Bytes();
 }
 
 std::wstring FormatSizeSuffixes(ULONGLONG n)
@@ -121,32 +117,32 @@ std::wstring FormatSizeSuffixes(ULONGLONG n)
     const double B = static_cast<int>(n % base);
     n /= base;
 
-    const double KB = static_cast<int>(n % base);
+    const double KiB = static_cast<int>(n % base);
     n /= base;
 
-    const double MB = static_cast<int>(n % base);
+    const double MiB = static_cast<int>(n % base);
     n /= base;
 
-    const double GB = static_cast<int>(n % base);
+    const double GiB = static_cast<int>(n % base);
     n /= base;
 
-    const double TB = static_cast<int>(n);
+    const double TiB = static_cast<int>(n);
 
-    if (TB != 0.0 || GB == base - 1 && MB >= half)
+    if (TiB != 0.0 || GiB == base - 1 && MiB >= half)
     {
-        return FormatDouble(TB + GB / base) + L" " + GetSpec_TB();
+        return FormatDouble(TiB + GiB / base) + L" " + GetSpec_TiB();
     }
-    if (GB != 0.0 || MB == base - 1 && KB >= half)
+    if (GiB != 0.0 || MiB == base - 1 && KiB >= half)
     {
-        return FormatDouble(GB + MB / base) + L" " + GetSpec_GB();
+        return FormatDouble(GiB + MiB / base) + L" " + GetSpec_GiB();
     }
-    if (MB != 0.0 || KB == base - 1 && B >= half)
+    if (MiB != 0.0 || KiB == base - 1 && B >= half)
     {
-        return FormatDouble(MB + KB / base) + L" " + GetSpec_MB();
+        return FormatDouble(MiB + KiB / base) + L" " + GetSpec_MiB();
     }
-    if (KB != 0.0)
+    if (KiB != 0.0)
     {
-        return FormatDouble(KB + B / base) + L" " + GetSpec_KB();
+        return FormatDouble(KiB + B / base) + L" " + GetSpec_KiB();
     }
 
     return std::to_wstring(static_cast<ULONG>(B)) + L" " + GetSpec_Bytes();
@@ -348,7 +344,7 @@ void WaitForHandleWithRepainting(const HANDLE h, const DWORD TimeOut)
 
 bool FolderExists(const std::wstring & path)
 {
-    const DWORD result = GetFileAttributes(FileFindEnhanced::MakeLongPathCompatible(path).c_str());
+    const DWORD result = GetFileAttributes(FinderBasic::MakeLongPathCompatible(path).c_str());
     return result != INVALID_FILE_ATTRIBUTES && (result & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
@@ -420,61 +416,84 @@ std::wstring MyQueryDosDevice(const std::wstring & drive)
 }
 
 // drive is a drive spec like C: or C:\ or C:\path (path is ignored).
-// 
+//
 // This function returns true, if QueryDosDevice() is supported
 // and drive is a SUBSTed drive.
 //
 bool IsSUBSTedDrive(const std::wstring & drive)
 {
     const std::wstring info = MyQueryDosDevice(drive);
-    return info.size() >= 4 && info.substr(0, 4) == L"\\??\\";
+    return info.starts_with(L"\\??\\");
 }
 
 const std::wstring & GetSpec_Bytes()
 {
-    static std::wstring s = Localization::Lookup(IDS_SPEC_BYTES, L"Bytes");
+    static std::wstring s = Localization::Lookup(IDS_SPEC_BYTES, L"bytes");
     return s;
 }
 
-const std::wstring& GetSpec_KB()
+const std::wstring& GetSpec_KiB()
 {
-    static std::wstring s = Localization::Lookup(IDS_SPEC_KB, L"KiB");
+    static std::wstring s = Localization::Lookup(IDS_SPEC_KiB, L"KiB");
     return s;
 }
 
-const std::wstring& GetSpec_MB()
+const std::wstring& GetSpec_MiB()
 {
-    static std::wstring s = Localization::Lookup(IDS_SPEC_MB, L"MiB");
+    static std::wstring s = Localization::Lookup(IDS_SPEC_MiB, L"MiB");
     return s;
 }
 
-const std::wstring& GetSpec_GB()
+const std::wstring& GetSpec_GiB()
 {
-    static std::wstring s = Localization::Lookup(IDS_SPEC_GB, L"GiB");
+    static std::wstring s = Localization::Lookup(IDS_SPEC_GiB, L"GiB");
     return s;
 }
 
-const std::wstring& GetSpec_TB()
+const std::wstring& GetSpec_TiB()
 {
-    static std::wstring s = Localization::Lookup(IDS_SPEC_TB, L"TiB");
+    static std::wstring s = Localization::Lookup(IDS_SPEC_TiB, L"TiB");
     return s;
 }
 
-bool IsAdmin()
+bool IsElevationActive()
 {
-    SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
-    if (SmartPointer<PSID> pSid(FreeSid); AllocateAndInitializeSid(&NtAuthority, 2,
-        SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &pSid))
+    SmartPointer<HANDLE> token(CloseHandle);
+    TOKEN_ELEVATION elevation;
+    DWORD size = sizeof(TOKEN_ELEVATION);
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token) == 0 ||
+        GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size) == 0)
     {
-        BOOL bResult = FALSE;
-        if (!CheckTokenMembership(nullptr, pSid, &bResult))
-        {
-            return false;
-        }
-        return bResult != FALSE;
+        return false;
     }
 
-    return false;
+    return elevation.TokenIsElevated != 0;
+}
+
+bool IsElevationAvailable()
+{
+    if (IsElevationActive()) return false;
+
+    SmartPointer<HANDLE> token(CloseHandle);
+    TOKEN_ELEVATION_TYPE elevationType;
+    DWORD size = sizeof(TOKEN_ELEVATION_TYPE);
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token) == 0 ||
+        GetTokenInformation(token, TokenElevationType, &elevationType, sizeof(elevationType), &size) == 0)
+    {
+        return false;
+    }
+
+    return elevationType == TokenElevationTypeLimited;
+}
+
+void RunElevated(const std::wstring& cmdLine)
+{
+    // For the configuration to launch, include the parent process so we can
+    // terminate it once launched from the child process
+    PersistedSetting::WritePersistedProperties(); // write settings to disk before before elevation
+    const std::wstring launchConfig = std::format(LR"(/ParentPid:{} "{}")",
+        GetCurrentProcessId(), cmdLine);
+    ShellExecuteWrapper(GetAppFileName(), launchConfig, L"runas");
 }
 
 bool EnableReadPrivileges()
@@ -551,7 +570,7 @@ void ReplaceString(std::wstring& subject, const std::wstring& search, const std:
     }
 }
 
-std::wstring& TrimString(std::wstring& s, wchar_t c)
+std::wstring& TrimString(std::wstring& s, const wchar_t c)
 {
     while (!s.empty() && s.back() == c) s.pop_back();
     while (!s.empty() && s.front() == c) s.erase(0, 1);
@@ -590,6 +609,9 @@ void ProcessMessagesUntilSignaled(const std::function<void()>& callback)
         MSG msg;
         while (GetMessage(&msg, nullptr, 0, 0)) {
             if (msg.message == waitMessage) break;
+            if (msg.message >= WM_MOUSEFIRST && msg.message <= WM_MOUSELAST) continue;
+            if (msg.message >= WM_KEYFIRST && msg.message <= WM_KEYLAST) continue;
+            if (msg.message == WM_NCLBUTTONDOWN || msg.message == WM_NCLBUTTONUP) continue;
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
@@ -600,7 +622,7 @@ void ProcessMessagesUntilSignaled(const std::function<void()>& callback)
     }
 }
 
-std::wstring GlobToRegex(const std::wstring& glob)
+std::wstring GlobToRegex(const std::wstring& glob, const bool useAnchors)
 {
     std::wstring regex = glob;
 
@@ -613,7 +635,7 @@ std::wstring GlobToRegex(const std::wstring& glob)
     // Replace '?' (match any single character)
     regex = std::regex_replace(regex, std::wregex(LR"(\?)"), LR"([^\\/:])");
 
-    return L"^" + regex + L"$";
+    return useAnchors ? (L"^" + regex + L"$") : regex;
 }
 
 std::vector<BYTE> GetCompressedResource(const HRSRC resource)
@@ -642,8 +664,8 @@ std::wstring GetVolumePathNameEx(const std::wstring & path)
     // Establish a fallback volume as drive letter or server name
     std::wstring fallback;
     std::wsmatch match;
-    if (std::regex_search(path, match, std::wregex(LR"(\\\\\?\\([A-Z]:).*)")) && match.size() > 1 ||
-        std::regex_search(path, match, std::wregex(LR"(\\\\\?\\UNC\\([^\\]*).*)")) && match.size() > 1)
+    if (std::regex_match(path, match, std::wregex(LR"(\\\\\?\\([A-Z]:).*)")) && match.size() > 1 ||
+        std::regex_match(path, match, std::wregex(LR"(\\\\\?\\UNC\\([^\\]*).*)")) && match.size() > 1)
     {
         fallback = match[1].str();
     }
@@ -666,7 +688,7 @@ std::wstring GetVolumePathNameEx(const std::wstring & path)
     if (bufferSize == 0) return fallback;
 
     // Lookup the path and then determine the pathname from it
-    std::vector<WCHAR> final(bufferSize + 1, L'\0');
+    std::vector final(bufferSize + 1, L'\0');
     if (GetFinalPathNameByHandle(handle, final.data(), static_cast<DWORD>(final.size()), FILE_NAME_NORMALIZED) != 0 &&
         GetVolumePathName(final.data(), volume.data(), static_cast<DWORD>(volume.size())) != 0)
     {
@@ -712,7 +734,7 @@ bool IsHibernateEnabled()
 {
     WCHAR drive[3];
     return GetEnvironmentVariable(L"SystemDrive", drive, std::size(drive)) == std::size(drive) - 1 &&
-        FileFindEnhanced::DoesFileExist(drive + std::wstring(L"\\"), L"hiberfil.sys");
+        FinderBasic::DoesFileExist(drive + std::wstring(L"\\"), L"hiberfil.sys");
 }
 
 bool ShellExecuteWrapper(const std::wstring& lpFile, const std::wstring& lpParameters, const std::wstring& lpVerb,
@@ -772,7 +794,7 @@ std::wstring GetAppFolder()
     return folder.substr(0, folder.find_last_of(wds::chrBackslash));
 }
 
-constexpr DWORD SidGetLength(const PSID x)
+static constexpr DWORD SidGetLength(const PSID x)
 {
     return sizeof(SID) + (static_cast<SID*>(x)->SubAuthorityCount - 1) * sizeof(static_cast<SID*>(x)->SubAuthority);
 }
@@ -793,8 +815,7 @@ std::wstring GetNameFromSid(const PSID sid)
 
     // attempt to lookup sid in cache
     static std::map<PSID, std::wstring, decltype(comp)> nameMap(comp);
-    const auto iter = nameMap.find(sid);
-    if (iter != nameMap.end())
+    if (const auto iter = nameMap.find(sid); iter != nameMap.end())
     {
         return iter->second;
     }
@@ -855,7 +876,7 @@ IContextMenu* GetContextMenu(const HWND hwnd, const std::vector<std::wstring>& p
     return nullptr;
 }
 
-bool CompressFile(const std::wstring& filePath, CompressionAlgorithm algorithm)
+bool CompressFile(const std::wstring& filePath, const CompressionAlgorithm algorithm)
 {
     USHORT numericAlgorithm = static_cast<USHORT>(algorithm) & ~FILE_PROVIDER_COMPRESSION_MODERN;
     const bool modernAlgorithm = static_cast<USHORT>(algorithm) != numericAlgorithm;
@@ -878,11 +899,11 @@ bool CompressFile(const std::wstring& filePath, CompressionAlgorithm algorithm)
         }
         info =
         {
-            {
+            .wof_info = {
                 .Version = WOF_CURRENT_VERSION,
                 .Provider = WOF_PROVIDER_FILE,
             },
-            {
+            .file_info = {
                 .Version = FILE_PROVIDER_CURRENT_VERSION,
                 .Algorithm = numericAlgorithm,
             },
@@ -914,7 +935,7 @@ bool CompressFile(const std::wstring& filePath, CompressionAlgorithm algorithm)
     return status == 1 || status == 0xC000046F;
 }
 
-bool CompressFileAllowed(const std::wstring& filePath, CompressionAlgorithm algorithm)
+bool CompressFileAllowed(const std::wstring& filePath, const CompressionAlgorithm algorithm)
 {
     static std::unordered_map<std::wstring, bool> compressionStandard;
     static std::unordered_map<std::wstring, bool> compressionModern;
@@ -934,36 +955,59 @@ bool CompressFileAllowed(const std::wstring& filePath, CompressionAlgorithm algo
         return compressionMap.at(volumeName);
     }
 
-    // Enable 'none' button if either normal or modern are available
+    // Enable 'none' button if at least standard is available
     if (algorithm == CompressionAlgorithm::NONE)
     {
         return CompressFileAllowed(filePath, CompressionAlgorithm::LZNT1) ||
             CompressFileAllowed(filePath, CompressionAlgorithm::XPRESS4K);
     }
 
-    // Query volume for standard compression support
-    if (algorithm == CompressionAlgorithm::LZNT1)
-    {
-        DWORD fileSystemFlags = 0;
-        compressionMap[volumeName.data()] = GetVolumeInformation(volumeName.c_str(),
-            nullptr, 0, nullptr, nullptr, &fileSystemFlags, nullptr, 0) != 0 &&
-            (fileSystemFlags & FILE_FILE_COMPRESSION) != 0;
-    }
-    else
-    {
-        compressionMap[volumeName.data()] = false;
-        SmartPointer<HANDLE> handle(CloseHandle, CreateFileW(volumeName.c_str(), GENERIC_READ,
-            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-            nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr));
-        if (handle != INVALID_HANDLE_VALUE)
-        {
-            DWORD bytesReturned = 0;
-            const BOOL status = DeviceIoControl(handle, FSCTL_GET_EXTERNAL_BACKING,
-                nullptr, 0, nullptr, 0, &bytesReturned, nullptr);
-            compressionMap[volumeName.data()] = (status != 0 || GetLastError() == 342);
-        }
-        else VTRACE(L"CreateFile() Error: {:#08X}", GetLastError());
-    }
+    // Query volume for standard compression support based on whether NTFS
+    std::array<WCHAR, MAX_PATH + 1> fileSystemName;
+    DWORD fileSystemFlags = 0;
+    const bool isNTFS = GetVolumeInformation(volumeName.c_str(), nullptr, 0, nullptr, nullptr,
+        &fileSystemFlags, fileSystemName.data(), static_cast<DWORD>(fileSystemName.size())) != 0 &&
+        std::wstring(fileSystemName.data()) == L"NTFS";
+
+    // Query volume for modern compression support based on NTFS and OS version
+    compressionStandard[volumeName.data()] = isNTFS && (fileSystemFlags & FILE_FILE_COMPRESSION) != 0;
+    compressionModern[volumeName.data()] = isNTFS && IsWindows10OrGreater();
 
     return compressionMap.at(volumeName);
+}
+
+std::wstring PromptForFolder(const HWND hwnd, const std::wstring& initialFolder)
+{
+    // Create the file dialog object and set basic options
+    CComPtr<IFileDialog> pfd;
+    FILEOPENDIALOGOPTIONS options;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd))) ||
+        FAILED(pfd->GetOptions(&options)) ||
+        FAILED(pfd->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_DONTADDTORECENT)) ||
+        FAILED(pfd->SetTitle(Localization::LookupNeutral(AFX_IDS_APP_TITLE).c_str())))
+    {
+        return {};
+    }
+
+    // Set the initial folder if provided
+    if (!initialFolder.empty())
+    {
+        CComPtr<IShellItem> psiFolder;
+        if (SUCCEEDED(SHCreateItemFromParsingName(initialFolder.c_str(), nullptr, IID_PPV_ARGS(&psiFolder))))
+        {
+            (void) pfd->SetFolder(psiFolder);
+        }
+    }
+
+    // Show the dialog and get result
+    CComPtr<IShellItem> psiResult;
+    SmartPointer<LPWSTR> pszPath(CoTaskMemFree);
+    if (FAILED(pfd->Show(hwnd)) ||
+        FAILED(pfd->GetResult(&psiResult)) ||
+        FAILED(psiResult->GetDisplayName(SIGDN_FILESYSPATH, &pszPath)))
+    {
+        return {};
+    }
+
+    return *pszPath;
 }

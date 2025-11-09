@@ -1,21 +1,18 @@
-﻿// WinDirStat.cpp - Implementation of CDirStatApp and some globals
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -27,6 +24,7 @@
 #include "TreeMapView.h"
 #include "GlobalHelpers.h"
 #include "Localization.h"
+#include "MessageBoxDlg.h"
 #include "PageFiltering.h"
 #include "SmartPointer.h"
 
@@ -51,11 +49,11 @@ CDirStatApp CDirStatApp::_singleton;
 
 CDirStatApp::CDirStatApp()
 {
-#ifdef VTRACE_TO_CONSOLE
+#ifdef _DEBUG
     m_VtraceConsole.Attach(new CWDSTracerConsole);
 #endif
 
-    m_AltColor = GetAlternativeColor(RGB(0x00, 0x00, 0xFF), L"AltColor");
+    m_AltColor = GetAlternativeColor(RGB(0x3A, 0x99, 0xE8), L"AltColor");
     m_AltEncryptionColor = GetAlternativeColor(RGB(0x00, 0x80, 0x00), L"AltEncryptionColor");
 }
 
@@ -114,8 +112,8 @@ void CDirStatApp::RestartApplication(bool resetPreferences)
 
 std::tuple<ULONGLONG, ULONGLONG> CDirStatApp::GetFreeDiskSpace(const std::wstring & pszRootPath)
 {
-    ULARGE_INTEGER u64total = {{0, 0}};
-    ULARGE_INTEGER u64free = {{0, 0}};
+    ULARGE_INTEGER u64total = {.QuadPart = 0};
+    ULARGE_INTEGER u64free = {.QuadPart = 0};
 
     if (GetDiskFreeSpaceEx(pszRootPath.c_str(), nullptr, &u64total, &u64free) == 0)
     {
@@ -126,20 +124,13 @@ std::tuple<ULONGLONG, ULONGLONG> CDirStatApp::GetFreeDiskSpace(const std::wstrin
     return { u64total.QuadPart, u64free.QuadPart };
 }
 
-void CDirStatApp::ReReadMountPoints()
+bool CDirStatApp::IsFollowingAllowed(const DWORD reparseTag) const
 {
-    m_ReparsePoints.Initialize();
-}
-
-bool CDirStatApp::IsFollowingAllowed(const std::wstring& longpath, const DWORD attr) const
-{
-    // Allow following if not a reparse point, is a reparse point without exclusion controls,
-    // or is a reparse point with exclusion controls but are not excluded
-    return !CReparsePoints::IsReparsePoint(attr) ||
-        !CReparsePoints::IsReparseType(longpath, { IO_REPARSE_TAG_SYMLINK, IO_REPARSE_TAG_MOUNT_POINT }) ||
-        !COptions::ExcludeVolumeMountPoints && m_ReparsePoints.IsVolumeMountPoint(longpath, attr) ||
-        !COptions::ExcludeJunctions && m_ReparsePoints.IsJunction(longpath, attr) ||
-        !COptions::ExcludeSymbolicLinksDirectory && CReparsePoints::IsSymbolicLink(longpath, attr);
+    if (reparseTag == 0) return true;
+    return reparseTag == IO_REPARSE_TAG_MOUNT_POINT && !COptions::ExcludeVolumeMountPoints ||
+        reparseTag == IO_REPARSE_TAG_SYMLINK && !COptions::ExcludeSymbolicLinksDirectory ||
+        reparseTag == IO_REPARSE_TAG_JUNCTION_POINT && !COptions::ExcludeJunctions ||
+        (reparseTag != IO_REPARSE_TAG_MOUNT_POINT && reparseTag != IO_REPARSE_TAG_SYMLINK && reparseTag != IO_REPARSE_TAG_JUNCTION_POINT);
 }
 
 // Get the alternative colors for compressed and encrypted files/folders.
@@ -185,8 +176,7 @@ std::wstring CDirStatApp::GetCurrentProcessMemoryInfo()
         return wds::strEmpty;
     }
 
-    static std::wstring memformat = L"     " + Localization::Lookup(IDS_RAMUSAGEs);
-    return Localization::Format(memformat, FormatBytes(pmc.WorkingSetSize));
+    return L"     " + Localization::Format(IDS_RAMUSAGEs, FormatBytes(pmc.WorkingSetSize));
 }
 
 bool CDirStatApp::InPortableMode()
@@ -246,16 +236,59 @@ CString AFXGetRegPath(LPCTSTR lpszPostFix, LPCTSTR)
     return CString(L"Software\\WinDirStat\\WinDirStat\\") + lpszPostFix + L"\\";
 }
 
+ class CWinDirStatCommandLineInfo final : public CCommandLineInfo
+{
+public:
+
+    DWORD m_ParentPid = 0;
+    std::vector<std::wstring> m_PathsToOpen;
+
+    void ParseParam(const WCHAR* pszParam, BOOL bFlag, BOOL bLast) override
+    {
+        UNREFERENCED_PARAMETER(bLast);
+
+        // Normalize string for parsing
+        std::wstring param{ pszParam };
+        TrimString(param, wds::chrDoubleQuote);
+        TrimString(param, wds::chrBackslash);
+
+        // Handle any non-flags as paths
+        if (!bFlag)
+        {
+            if (!m_strFileName.IsEmpty()) m_strFileName += wds::chrPipe;
+            m_strFileName += param.c_str();
+            return;
+        }
+
+        // Handle special parameter of parent process to close
+        MakeLower(param);
+        const std::wstring ParentPidFlag = L"parentpid:";
+        if (param.starts_with(ParentPidFlag))
+        {
+            m_ParentPid = std::stoul(param.substr(ParentPidFlag.size()));
+        }
+    }
+};
+
 BOOL CDirStatApp::InitInstance()
 {
     // Prevent state saving
     m_bSaveState = FALSE;
 
-    CWinAppEx::InitInstance();
-    InitShellManager();
-
     // Load default language just to get bootstrapped
     Localization::LoadResource(MAKELANGID(LANG_ENGLISH, SUBLANG_NEUTRAL));
+
+    // If a local config file is available, use that for settings
+    SetPortableMode(true, true);
+
+    COptions::LoadAppSettings();
+    LoadStdProfileSettings(0);
+
+    // Set app to prefer dark mode
+    DarkMode::SetAppDarkMode();
+
+    CWinAppEx::InitInstance();
+    InitShellManager();
 
     // Initialize visual controls
     constexpr INITCOMMONCONTROLSEX ctrls = { sizeof(INITCOMMONCONTROLSEX) , ICC_STANDARD_CLASSES };
@@ -270,39 +303,23 @@ BOOL CDirStatApp::InitInstance()
     ULONG_PTR gdiplusToken;
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
 
-    // If a local config file is available, use that for settings
-    SetPortableMode(true, true);
-
-    COptions::LoadAppSettings();
-    LoadStdProfileSettings(0);
-
     m_PDocTemplate = new CSingleDocTemplate(
         IDR_MAINFRAME,
         RUNTIME_CLASS(CDirStatDoc),
         RUNTIME_CLASS(CMainFrame),
         RUNTIME_CLASS(CTreeMapView));
-    if (!m_PDocTemplate)
-    {
-        return FALSE;
-    }
     AddDocTemplate(m_PDocTemplate);
 
-    CCommandLineInfo cmdInfo;
+    // Parse command line arguments
+    CWinDirStatCommandLineInfo cmdInfo;
     ParseCommandLine(cmdInfo);
-    if (cmdInfo.m_nShellCommand == CCommandLineInfo::FileOpen)
-    {
-        // Use the default a new document since the shell processor will fault
-        // interpreting the complex configuration string we pass as a document name
-        CCommandLineInfo cmdAlt;
-        ProcessShellCommand(cmdAlt);
-    }
-    else
-    {
-        if (!ProcessShellCommand(cmdInfo))
-            return FALSE;
-    }
+    ProcessShellCommand(cmdInfo);
+
+    // Allow dark mode
+    DarkMode::SetupGlobalColors();
 
     CMainFrame::Get()->InitialShowWindow();
+    m_pMainWnd->Invalidate();
     m_pMainWnd->UpdateWindow();
 
     // When called by setup.exe, WinDirStat remained in the
@@ -316,28 +333,59 @@ BOOL CDirStatApp::InitInstance()
         VTRACE(L"Failed to enable additional privileges.");
     }
 
-    if (cmdInfo.m_nShellCommand == CCommandLineInfo::FileOpen)
+    // Enable reading of reparse data for cloud links
+    SmartPointer<HMODULE> hmod(FreeLibrary, LoadLibrary(L"ntdll.dll"));
+    CHAR(WINAPI * RtlSetProcessPlaceholderCompatibilityMode) (CHAR Mode) =
+        reinterpret_cast<decltype(RtlSetProcessPlaceholderCompatibilityMode)>(
+            static_cast<LPVOID>(GetProcAddress(hmod, "RtlSetProcessPlaceholderCompatibilityMode")));
+    if (RtlSetProcessPlaceholderCompatibilityMode != nullptr)
     {
-        // See if the filename has the format of <PID>|<PATH>|<PATH>
-        int token = 0;
-        cmdInfo.m_strFileName = cmdInfo.m_strFileName.Trim(L'"');
-        const DWORD parent = wcstoul(cmdInfo.m_strFileName.Tokenize(L"|", token), nullptr, 10);
-        if (token > 0 && token < cmdInfo.m_strFileName.GetLength())
+        constexpr CHAR PHCM_EXPOSE_PLACEHOLDERS = 2;
+        RtlSetProcessPlaceholderCompatibilityMode(PHCM_EXPOSE_PLACEHOLDERS);
+    }
+
+    // If launches with a parent pid flag, close that process
+    if (cmdInfo.m_ParentPid != 0)
+    {
+        if (SmartPointer<HANDLE> handle(CloseHandle, OpenProcess(PROCESS_TERMINATE, FALSE, cmdInfo.m_ParentPid)); handle != nullptr)
         {
-            // Terminate the process that called us
-            cmdInfo.m_strFileName = cmdInfo.m_strFileName.Right(cmdInfo.m_strFileName.GetLength() - token);
-            if (SmartPointer<HANDLE> handle(CloseHandle, OpenProcess(PROCESS_TERMINATE, FALSE, parent)); handle != nullptr)
-            {
-                TerminateProcess(handle, 0);
-            }
+            TerminateProcess(handle, 0);
+        }
+    }
+
+    // Prompt user to enable enhanced scanning engine if it is disabled and running in elevated privileges
+    if (IsElevationActive() && COptions::UseFastScanEngine == false && COptions::ShowFastScanPrompt) {
+        CMessageBoxDlg fastScanPrompt( Localization::Lookup(IDS_ENABLEFASTSCAN_QUESTION),
+            Localization::Lookup(IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION, m_pMainWnd,
+            {}, Localization::Lookup(IDS_DONT_SHOW_AGAIN), false);
+
+        const INT_PTR result = fastScanPrompt.DoModal();
+        COptions::UseFastScanEngine = (result == IDYES);
+        COptions::UseFastScanEngine.WritePersistedProperty();
+        COptions::ShowFastScanPrompt = !fastScanPrompt.IsCheckboxChecked();
+    }
+
+    // Allow user to elevate if desired
+    if (IsElevationAvailable() && COptions::ShowElevationPrompt)
+    {
+        CMessageBoxDlg elevationPrompt(Localization::Lookup(IDS_ELEVATION_QUESTION),
+            Localization::Lookup(IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION, m_pMainWnd, {},
+            Localization::Lookup(IDS_DONT_SHOW_AGAIN), false);
+
+        const INT_PTR result = elevationPrompt.DoModal();
+        COptions::ShowElevationPrompt = !elevationPrompt.IsCheckboxChecked();
+        if (result == IDYES)
+        {
+            RunElevated(m_lpCmdLine);
+            return FALSE;
         }
 
-        m_PDocTemplate->OpenDocumentFile(cmdInfo.m_strFileName, true);
+        COptions::UseFastScanEngine = false;
     }
-    else
-    {
-        OnFileOpen();
-    }
+
+    // Either open the file names or open file selection dialog
+    cmdInfo.m_strFileName.IsEmpty() ? OnFileOpen() :
+        (void)m_PDocTemplate->OpenDocumentFile(cmdInfo.m_strFileName, true);
 
     return TRUE;
 }
@@ -358,37 +406,19 @@ void CDirStatApp::OnFileOpen()
     CSelectDrivesDlg dlg;
     if (IDOK == dlg.DoModal())
     {
-        const std::wstring path = CDirStatDoc::EncodeSelection(static_cast<RADIO>(dlg.m_Radio),
-            dlg.m_FolderName.GetString(), dlg.m_Drives);
+        const std::wstring path = CDirStatDoc::EncodeSelection(dlg.GetSelectedItems());
         m_PDocTemplate->OpenDocumentFile(path.c_str(), true);
     }
 }
 
 void CDirStatApp::OnUpdateRunElevated(CCmdUI* pCmdUI)
 {
-    pCmdUI->Enable(!IsAdmin());
+    pCmdUI->Enable(!IsElevationActive());
 }
 
 void CDirStatApp::OnRunElevated()
 {
-    // For the configuration to launch, include the parent process so we can
-    // terminate it once launched from the child process
-    const std::wstring sAppName = GetAppFileName();
-    const std::wstring launchConfig = std::format(LR"("{}|{}")", GetCurrentProcessId(), CDirStatDoc::GetDocument()->GetPathName().GetString());
-
-    SHELLEXECUTEINFO shellInfo;
-    ZeroMemory(&shellInfo, sizeof(shellInfo));
-    shellInfo.cbSize = sizeof(shellInfo);
-    shellInfo.fMask  = SEE_MASK_DEFAULT;
-    shellInfo.lpFile = sAppName.c_str();
-    shellInfo.lpVerb = L"runas";
-    shellInfo.nShow  = SW_NORMAL;
-    shellInfo.lpParameters = launchConfig.c_str();
-
-    if (!::ShellExecuteEx(&shellInfo))
-    {
-        VTRACE(L"ShellExecuteEx failed to elevate: {:#08X}", GetLastError());
-    }
+    RunElevated(CDirStatDoc::GetDocument()->GetPathName().GetString());
 }
 
 void CDirStatApp::OnFilter()

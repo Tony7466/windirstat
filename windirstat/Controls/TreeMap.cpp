@@ -1,33 +1,32 @@
-﻿// TreeMap.cpp - Implementation of CColorSpace, CTreeMap and CTreeMapPreview
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
 #include "SelectObject.h"
 #include "TreeMap.h"
+#include "DarkMode.h"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <vector>
 #include <stack>
 
-constexpr COLORREF BGR(auto b, auto g, auto r)
+static constexpr COLORREF BGR(auto b, auto g, auto r)
 {
     return static_cast<BYTE>(b) | static_cast<BYTE>(g) << 8 | static_cast<BYTE>(r) << 16;
 }
@@ -44,7 +43,7 @@ static constexpr double PALETTE_BRIGHTNESS = 0.6;
 
 double CColorSpace::GetColorBrightness(const COLORREF color)
 {
-    const unsigned int crIndividualIntensitySum = RGB_GET_RVALUE(color) + RGB_GET_GVALUE(color) + RGB_GET_BVALUE(color);
+    const unsigned int crIndividualIntensitySum = GetRValue(color) + GetGValue(color) + GetBValue(color);
     return crIndividualIntensitySum / 255.0 / 3.0;
 }
 
@@ -53,9 +52,9 @@ COLORREF CColorSpace::MakeBrightColor(const COLORREF color, const double brightn
     ASSERT(brightness >= 0.0);
     ASSERT(brightness <= 1.0);
 
-    double dred = (RGB_GET_RVALUE(color) & 0xFF) / 255.0;
-    double dgreen = (RGB_GET_GVALUE(color) & 0xFF) / 255.0;
-    double dblue = (RGB_GET_BVALUE(color) & 0xFF) / 255.0;
+    double dred = (GetRValue(color) & 0xFF) / 255.0;
+    double dgreen = (GetGValue(color) & 0xFF) / 255.0;
+    double dblue = (GetBValue(color) & 0xFF) / 255.0;
 
     const double f = 3.0 * brightness / (dred + dgreen + dblue);
     dred *= f;
@@ -207,7 +206,7 @@ void CTreeMap::DrawTreeMap(CDC* pdc, CRect rc, Item* root, const Options* option
         // We shrink the rectangle here, too.
         // If we didn't do this, the layout of the treemap would
         // change, when grid is switched on and off.
-        CPen pen(PS_SOLID, 1, GetSysColor(COLOR_3DSHADOW));
+        CPen pen(PS_SOLID, 1, DarkMode::WdsSysColor(COLOR_3DSHADOW));
         CSelectObject sopen(pdc, &pen);
         pdc->MoveTo(rc.right - 1, rc.top);
         pdc->LineTo(rc.right - 1, rc.bottom);
@@ -707,10 +706,7 @@ void CTreeMap::RenderRectangle(std::vector<COLORREF>& bitmap, const CRect& rc, c
         else
         {
             brightness *= 1.2;
-            if (brightness > 1.0)
-            {
-                brightness = 1.0;
-            }
+            brightness = std::min<double>(brightness, 1.0);
         }
     }
 
@@ -859,10 +855,10 @@ bool CTreeMap::IsCushionShading() const
 void CTreeMap::DrawSolidRect(std::vector<COLORREF>& bitmap, const CRect& rc, const COLORREF col, const double brightness) const
 {
     const double factor = brightness / PALETTE_BRIGHTNESS;
-
-    auto red = static_cast<int>(RGB_GET_RVALUE(col) * factor);
-    auto green = static_cast<int>(RGB_GET_GVALUE(col) * factor);
-    auto blue = static_cast<int>(RGB_GET_BVALUE(col) * factor);
+    
+    auto red = static_cast<int>(GetRValue(col) * factor);
+    auto green = static_cast<int>(GetGValue(col) * factor);
+    auto blue = static_cast<int>(GetBValue(col) * factor);
 
     CColorSpace::NormalizeColor(red, green, blue);
 
@@ -881,25 +877,19 @@ void CTreeMap::DrawCushion(std::vector<COLORREF>& bitmap, const CRect& rc, const
     // Derived parameters
     const double Is = 1 - Ia; // shading
 
-    const double colR = RGB_GET_RVALUE(col);
-    const double colG = RGB_GET_GVALUE(col);
-    const double colB = RGB_GET_BVALUE(col);
+    const double colR = GetRValue(col);
+    const double colG = GetGValue(col);
+    const double colB = GetBValue(col);
 
     for (int iy = rc.top; iy < rc.bottom; iy++) for (int ix = rc.left; ix < rc.right; ix++)
     {
         const double nx = -(2 * surface[0] * (ix + 0.5) + surface[2]);
         const double ny = -(2 * surface[1] * (iy + 0.5) + surface[3]);
         double cosa = (nx * m_Lx + ny * m_Ly + m_Lz) / sqrt(nx * nx + ny * ny + 1.0);
-        if (cosa > 1.0)
-        {
-            cosa = 1.0;
-        }
+        cosa = std::min<double>(cosa, 1.0);
 
         double pixel = Is * cosa;
-        if (pixel < 0)
-        {
-            pixel = 0;
-        }
+        pixel = std::max<double>(pixel, 0.0);
 
         pixel += Ia;
         ASSERT(pixel <= 1.0);

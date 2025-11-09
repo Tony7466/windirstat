@@ -1,21 +1,18 @@
-﻿// FileTreeControl.cpp - Implementation of CFileTreeView
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -36,14 +33,11 @@ bool CFileTreeControl::GetAscendingDefault(const int column)
     return column == COL_NAME || column == COL_LASTCHANGE;
 }
 
-#pragma warning(push)
-#pragma warning(disable:26454)
 BEGIN_MESSAGE_MAP(CFileTreeControl, CTreeListControl)
     ON_WM_SETFOCUS()
     ON_WM_KEYDOWN()
     ON_NOTIFY_EX(HDN_ENDDRAG, 0, OnHeaderEndDrag)
 END_MESSAGE_MAP()
-#pragma warning(pop)
 
 CFileTreeControl* CFileTreeControl::m_Singleton = nullptr;
 
@@ -79,7 +73,7 @@ void CFileTreeControl::OnKeyDown(const UINT nChar, const UINT nRepCnt, const UIN
 {
     if (nChar == VK_TAB)
     {
-        CMainFrame::Get()->MoveFocus(LF_EXTENSIONLIST);
+        CMainFrame::Get()->MoveFocus(LF_EXTLIST);
     }
     else if (nChar == VK_ESCAPE)
     {

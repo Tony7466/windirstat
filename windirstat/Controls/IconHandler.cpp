@@ -1,21 +1,18 @@
-﻿// IconHandler.cpp - Implementation of CIconHandler
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -40,11 +37,11 @@ void CIconHandler::Initialize()
 
     m_FilterOverride.RegisterFilter();
 
-    m_JunctionImage = CDirStatApp::Get()->LoadIcon(IDI_JUNCTION);
-    m_JunctionProtected = CDirStatApp::Get()->LoadIcon(IDI_JUNCTION_PROTECTED);
-    m_FreeSpaceImage = CDirStatApp::Get()->LoadIcon(IDI_FREE_SPACE);
-    m_UnknownImage = CDirStatApp::Get()->LoadIcon(IDI_UNKNOWN);
-    m_EmptyImage = CDirStatApp::Get()->LoadIcon(IDI_EMPTY);
+    m_JunctionImage = DarkMode::LightenIcon(CDirStatApp::Get()->LoadIcon(IDI_JUNCTION));
+    m_JunctionProtected = DarkMode::LightenIcon(CDirStatApp::Get()->LoadIcon(IDI_JUNCTION_PROTECTED), true);
+    m_FreeSpaceImage = DarkMode::LightenIcon(CDirStatApp::Get()->LoadIcon(IDI_FREE_SPACE), true);
+    m_UnknownImage = DarkMode::LightenIcon(CDirStatApp::Get()->LoadIcon(IDI_UNKNOWN), true);
+    m_EmptyImage = DarkMode::LightenIcon(CDirStatApp::Get()->LoadIcon(IDI_EMPTY), true);
 
     // Cache icon for boot drive
     const auto driveLen = wcslen(L"C:\\");
@@ -77,9 +74,6 @@ void CIconHandler::Initialize()
                 const auto i = control->FindListItem(item);
                 if (i == -1 || *icon != nullptr)
                 {
-                    // Delete icon if not longer in list or
-                    // if already set by another thread
-                    DestroyIcon(iconTmp);
                     return;
                 }
                  
@@ -168,41 +162,48 @@ HICON CIconHandler::FetchShellIcon(const std::wstring & path, UINT flags, const 
         else *psTypeName = sfi.szTypeName;
     }
 
-    // Check if icon is already in index and, if so, return
+    std::lock_guard lock(m_CachedIconMutex);
+    if (m_CachedIcons.contains(sfi.iIcon))
+    {
+        DestroyIcon(sfi.hIcon);
+        return m_CachedIcons[sfi.iIcon];
+    }
+
+    m_CachedIcons[sfi.iIcon] = sfi.hIcon;
     return sfi.hIcon;
 }
 
-HICON CIconHandler::GetMyComputerImage(const bool getCopy) const
+HICON CIconHandler::GetMyComputerImage() const
 {
-    return getCopy ? CopyIcon(m_MyComputerImage) : m_MyComputerImage;
+    return m_MyComputerImage;
 }
 
-HICON CIconHandler::GetMountPointImage(const bool getCopy) const
+HICON CIconHandler::GetMountPointImage() const
 {
-    return getCopy ? CopyIcon(m_MountPointImage) : m_MountPointImage;
+    return m_MountPointImage;
 }
 
-HICON CIconHandler::GetJunctionImage(const bool getCopy) const
+HICON CIconHandler::GetJunctionImage() const
 {
-    return getCopy ? CopyIcon(m_JunctionImage) : m_JunctionImage;
+    return m_JunctionImage;
 }
 
-HICON CIconHandler::GetJunctionProtectedImage(const bool getCopy) const
+HICON CIconHandler::GetJunctionProtectedImage() const
 {
-    return getCopy ? CopyIcon(m_JunctionProtected) : m_JunctionProtected;
+    return m_JunctionProtected;
 }
 
-HICON CIconHandler::GetFreeSpaceImage(const bool getCopy) const
+HICON CIconHandler::GetFreeSpaceImage() const
 {
-    return getCopy ? CopyIcon(m_FreeSpaceImage): m_FreeSpaceImage;
+    return m_FreeSpaceImage;
 }
 
-HICON CIconHandler::GetUnknownImage(const bool getCopy) const
+HICON CIconHandler::GetUnknownImage() const
 {
-    return getCopy ? CopyIcon(m_UnknownImage): m_UnknownImage;
+    return m_UnknownImage;
 }
 
-HICON CIconHandler::GetEmptyImage(const bool getCopy) const
+HICON CIconHandler::GetEmptyImage() const
 {
-    return getCopy ? CopyIcon(m_EmptyImage) : m_EmptyImage;
+    return m_EmptyImage;
 }

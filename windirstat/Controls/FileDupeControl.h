@@ -1,21 +1,18 @@
-﻿// FileDupeControl.h - Declaration of CFileDupeControl and CFileTreeView
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
@@ -23,7 +20,7 @@
 #include "ItemDupe.h"
 #include "TreeListControl.h"
 
-#include <shared_mutex>
+#include <mutex>
 #include <queue>
 #include <set>
 #include <map>
@@ -39,12 +36,12 @@ public:
     void RemoveItem(CItem* items);
     void SortItems() override;
 
-    std::shared_mutex m_HashTrackerMutex;
+    std::mutex m_HashTrackerMutex;
     std::map<ULONGLONG, std::vector<CItem*>> m_SizeTracker;
     std::map<std::vector<BYTE>, std::vector<CItem*>> m_HashTrackerSmall;
     std::map<std::vector<BYTE>, std::vector<CItem*>> m_HashTrackerLarge;
     
-    std::shared_mutex m_NodeTrackerMutex;
+    std::mutex m_NodeTrackerMutex;
     std::map<std::vector<BYTE>, CItemDupe*> m_NodeTracker;
     std::map<CItemDupe*, std::set<CItem*>> m_ChildTracker;
     std::vector<std::pair<CItemDupe*, CItemDupe*>> m_PendingListAdds;

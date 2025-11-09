@@ -1,32 +1,32 @@
-﻿// Item.h - Declaration of CItem
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
 
 #include "TreeListControl.h"
 #include "TreeMap.h"
-#include "DirStatDoc.h" // CExtensionData
-#include "FileFind.h" // FileFindEnhanced
+#include "DirStatDoc.h"
+#include "Finder.h"
 #include "BlockingQueue.h"
 
 #include <shared_mutex>
+
+class Finder;
+class FinderNtfsContext;
 
 // Columns
 enum ITEMCOLUMNS : std::uint8_t
@@ -60,28 +60,33 @@ enum ITEMTYPE : unsigned short
     ITF_SKIPHASH  = 1 << 10, // Indicates cannot be hased (unreadable)
     ITF_PARTHASH  = 1 << 11, // Indicates a partial hash
     ITF_FULLHASH  = 1 << 12, // Indicates a full hash
-    ITF_FLAGS     = 0xFF00,  // All potential flag items
+    ITF_SYMLINK   = 0b001 << 13, // Indicates a reparse point that is a symlink
+    ITF_MOUNTPNT  = 0b010 << 13, // Indicates a reparse point that is a mount point
+    ITF_JUNCTION  = 0b011 << 13, // Indicates a reparse point that is a junction
+    ITF_CLOUDLINK = 0b100 << 13, // Indicates a reparse point that is a cloud link
+    ITF_RPMASK    = 0b111 << 13, // Indicates a reparse point
+    ITF_FLAGS     = 0xFF00, // All potential flag items
 };
 
-inline ITEMTYPE operator|(const ITEMTYPE & a, const ITEMTYPE & b)
+constexpr ITEMTYPE operator|(const ITEMTYPE & a, const ITEMTYPE & b)
 {
     return static_cast<ITEMTYPE>(static_cast<unsigned short>(a) | static_cast<unsigned short>(b));
 }
 
-inline ITEMTYPE operator-(const ITEMTYPE& a, const ITEMTYPE& b)
+constexpr ITEMTYPE operator-(const ITEMTYPE& a, const ITEMTYPE& b)
 {
     return static_cast<ITEMTYPE>(static_cast<unsigned short>(a) & ~static_cast<unsigned short>(b));
 }
 
 // Compare FILETIMEs
-inline bool operator<(const FILETIME& t1, const FILETIME& t2)
+constexpr bool operator<(const FILETIME& t1, const FILETIME& t2)
 {
     return t1.dwHighDateTime < t2.dwHighDateTime
     || t1.dwHighDateTime == t2.dwHighDateTime && t1.dwLowDateTime < t2.dwLowDateTime;
 }
 
 // Compare FILETIMEs
-inline bool operator==(const FILETIME& t1, const FILETIME& t2)
+constexpr bool operator==(const FILETIME& t1, const FILETIME& t2)
 {
     return t1.dwLowDateTime == t2.dwLowDateTime && t1.dwHighDateTime == t2.dwHighDateTime;
 }
@@ -106,6 +111,9 @@ inline bool operator==(const FILETIME& t1, const FILETIME& t2)
 class CItem final : public CTreeListItem, public CTreeMap::Item
 {
 public:
+    // Initial reserve size (16) for path construction based on filesystem limit
+    static constexpr int DEFAULT_PATH_RESERVE = 16;
+
     CItem(const CItem&) = delete;
     CItem(CItem&&) = delete;
     CItem& operator=(const CItem&) = delete;
@@ -128,7 +136,7 @@ public:
     // CTreeMap::Item interface
     bool TmiIsLeaf() const override
     {
-        return IsType(IT_FILE | IT_FREESPACE | IT_UNKNOWN);
+        return IsLeaf();
     }
 
     CRect TmiGetRectangle() const override;
@@ -152,18 +160,19 @@ public:
 
     ULONGLONG TmiGetSize() const override
     {
-        return GetSizePhysical();
+        return COptions::TreeMapUseLogical ? GetSizeLogical() : GetSizePhysical();
     }
 
     // CItem
     static int GetSubtreePercentageWidth();
-    static CItem* FindCommonAncestor(const CItem* item1, const CItem* item2);
 
     ULONGLONG GetProgressRange() const;
     ULONGLONG GetProgressPos() const;
     void UpdateStatsFromDisk();
     const std::vector<CItem*>& GetChildren() const;
+    bool IsLeaf() const { return m_FolderInfo == nullptr; }
     CItem* GetParent() const;
+    CItem* GetParentDrive() const;
     void AddChild(CItem* child, bool addOnly = false);
     void RemoveChild(CItem* child);
     void RemoveAllChildren();
@@ -181,7 +190,7 @@ public:
     void UpwardRecalcLastChange(bool withoutItem = false);
     void ExtensionDataAdd() const;
     void ExtensionDataRemove() const;
-    void ExtensionDataRemoveChildren() const;
+    void ExtensionDataProcessChildren(bool remove = false) const;
     ULONGLONG GetSizePhysical() const;
     ULONGLONG GetSizeLogical() const;
     void SetSizePhysical(ULONGLONG size);
@@ -191,6 +200,10 @@ public:
     void SetLastChange(const FILETIME& t);
     void SetAttributes(DWORD attr);
     DWORD GetAttributes() const;
+    void SetIndex(DWORD index);
+    DWORD GetIndex() const;
+    DWORD GetReparseTag() const;
+    void SetReparseTag(DWORD reparseType);
     unsigned short GetSortAttributes() const;
     double GetFraction() const;
     bool IsRootItem() const;
@@ -199,6 +212,7 @@ public:
     std::wstring GetOwner(bool force = false) const;
     bool HasUncPath() const;
     std::wstring GetFolderPath() const;
+    void SetName(std::wstring_view name);
     std::wstring GetName() const;
     std::wstring GetExtension() const;
     ULONG GetFilesCount() const;
@@ -206,9 +220,10 @@ public:
     ULONGLONG GetItemsCount() const;
     void SetDone();
     void SortItemsBySizePhysical() const;
+    void SortItemsBySizeLogical() const;
     ULONGLONG GetTicksWorked() const;
     void ResetScanStartTime() const;
-    static void ScanItems(BlockingQueue<CItem*> *);
+    static void ScanItems(BlockingQueue<CItem*> *, FinderNtfsContext& contextNtfs);
     static void ScanItemsFinalize(CItem* item);
     void UpwardSetDone();
     void UpwardSetUndone();
@@ -221,6 +236,7 @@ public:
     CItem* FindUnknownItem() const;
     void UpdateUnknownItem() const;
     void RemoveUnknownItem();
+    void UpwardDrivePacman();
 
     std::vector<BYTE> GetFileHash(ULONGLONG hashSizeLimit, BlockingQueue<CItem*>* queue);
 
@@ -250,6 +266,11 @@ public:
         else m_Type = m_Type - type;
     }
 
+    constexpr bool IsReparseType(const ITEMTYPE type) const
+    {
+        return (m_Type & ITF_RPMASK) == type;
+    }
+
     static constexpr bool FileTimeIsGreater(const FILETIME& ft1, const FILETIME& ft2)
     {
         return (static_cast<QWORD>(ft1.dwHighDateTime) << 32 | (ft1.dwLowDateTime)) >
@@ -263,12 +284,11 @@ private:
     bool MustShowReadJobs() const;
     COLORREF GetPercentageColor() const;
     std::wstring UpwardGetPathWithoutBackslash() const;
-    CItem* AddDirectory(const FileFindEnhanced& finder);
-    CItem* AddFile(const FileFindEnhanced& finder);
-    void UpwardDrivePacman();
+    CItem* AddDirectory(const Finder& finder);
+    CItem* AddFile(const Finder& finder);
 
     // Used for initialization of hashing process
-    static std::shared_mutex m_HashMutex;
+    static std::mutex m_HashMutex;
     static BCRYPT_ALG_HANDLE m_HashAlgHandle;
     static DWORD m_HashLength;
 
@@ -286,12 +306,14 @@ private:
         std::atomic<ULONG> m_Jobs = 0;    // # "read jobs" in subtree.
     };
 
-    RECT m_Rect;                                  // To support TreeMapView
-    std::wstring m_Name;                          // Display name
-    FILETIME m_LastChange = {0, 0};               // Last modification time of self or subtree
-    std::unique_ptr<CHILDINFO> m_FolderInfo;      // Child information for non-files
-    std::atomic<ULONGLONG> m_SizePhysical = 0;    // Total physical size of self or subtree
-    std::atomic<ULONGLONG> m_SizeLogical = 0;     // Total local size of self or subtree
-    DWORD m_Attributes = INVALID_FILE_ATTRIBUTES; // File or directory attributes of the item
-    ITEMTYPE m_Type;                              // Indicates our type.
+    std::unique_ptr<wchar_t[]> m_Name;         // Display name
+    std::unique_ptr<CHILDINFO> m_FolderInfo;   // Child information for non-files
+    std::atomic<ULONGLONG> m_SizePhysical = 0; // Total physical size of self or subtree
+    std::atomic<ULONGLONG> m_SizeLogical = 0;  // Total local size of self or subtree
+    FILETIME m_LastChange = { 0, 0 };          // Last modification time of self or subtree
+    ULONG m_Index = 0;                         // Index of item for special scan types
+    USHORT m_Attributes = 0xFFFF;              // File or directory attributes of the item
+    USHORT m_NameLen = 0;
+    ITEMTYPE m_Type;                           // Indicates our type.
+    CSmallRect tmiRect = {};                   // Treemap rectangle
 };

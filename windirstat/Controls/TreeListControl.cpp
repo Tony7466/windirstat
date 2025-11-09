@@ -1,21 +1,18 @@
-﻿// TreeListControl.cpp - Implementation of CTreeListItem and CTreeListControl
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -85,10 +82,9 @@ std::wstring CTreeListItem::GetText(int /*subitem*/) const
     return {};
 }
 
-void CTreeListItem::DrawPacman(const CDC* pdc, const CRect& rc, const COLORREF bgColor) const
+void CTreeListItem::DrawPacman(const CDC* pdc, const CRect& rc) const
 {
     ASSERT(IsVisible());
-    m_VisualInfo->pacman.SetBackgroundColor(bgColor);
     m_VisualInfo->pacman.Draw(pdc, rc);
 }
 
@@ -185,13 +181,16 @@ bool CTreeListItem::IsAncestorOf(const CTreeListItem* item) const
     return false;
 }
 
-bool CTreeListItem::HasSiblings() const
+bool CTreeListItem::HasMoreSiblings() const
 {
     if (m_Parent == nullptr)
     {
         return false;
     }
-    return m_Parent->GetTreeListChildCount() > 1;
+
+    const auto thisIndex = m_VisualInfo->control->FindTreeItem(this);
+    const auto nextVisualItem = m_VisualInfo->control->GetItem(thisIndex + 1);
+    return nextVisualItem != nullptr && m_Parent == nextVisualItem->GetParent();
 }
 
 bool CTreeListItem::HasChildren() const
@@ -298,6 +297,7 @@ void CTreeListControl::SysColorChanged()
 
 CTreeListItem* CTreeListControl::GetItem(const int i) const
 {
+    if (i >= GetItemCount()) return nullptr;
     return reinterpret_cast<CTreeListItem*>(GetItemData(i));
 }
 
@@ -368,7 +368,7 @@ void CTreeListControl::ExpandPathToItem(const CTreeListItem* item)
         {
             for (int k = parent + 1; k < index; k++)
             {
-                // Do not collapse if in multiple selection mode (holding control) 
+                // Do not collapse if in multiple selection mode (holding control)
                 if ((HSHELL_HIGHBIT & GetKeyState(VK_CONTROL)) == 0) CollapseItem(k);
                 index = FindTreeItem(path);
             }
@@ -395,10 +395,11 @@ void CTreeListControl::InitializeNodeBitmaps()
 
     COLORMAP cm[1] = { {RGB(255, 0, 255), 0} };
 
+    auto bitmapToUse = DarkMode::IsDarkModeActive() ? IDB_NODES_INVERT : IDB_NODES;
     cm[0].to = GetWindowColor();
-    VERIFY(m_BmNodes0.LoadMappedBitmap(IDB_NODES, 0, cm, 1));
+    VERIFY(m_BmNodes0.LoadMappedBitmap(bitmapToUse, 0, cm, 1));
     cm[0].to = GetStripeColor();
-    VERIFY(m_BmNodes1.LoadMappedBitmap(IDB_NODES, 0, cm, 1));
+    VERIFY(m_BmNodes1.LoadMappedBitmap(bitmapToUse, 0, cm, 1));
 }
 
 void CTreeListControl::InsertItem(const int i, CTreeListItem* item)
@@ -419,8 +420,6 @@ int CTreeListControl::FindTreeItem(const CTreeListItem* item) const
     return FindListItem(item);
 }
 
-#pragma warning(push)
-#pragma warning(disable:26454)
 BEGIN_MESSAGE_MAP(CTreeListControl, COwnerDrawnListControl)
     ON_WM_MEASUREITEM_REFLECT()
     ON_NOTIFY_REFLECT(LVN_ITEMCHANGING, OnLvnItemChangingList)
@@ -428,9 +427,7 @@ BEGIN_MESSAGE_MAP(CTreeListControl, COwnerDrawnListControl)
     ON_WM_LBUTTONDOWN()
     ON_WM_KEYDOWN()
     ON_WM_LBUTTONDBLCLK()
-    ON_WM_DESTROY()
 END_MESSAGE_MAP()
-#pragma warning(pop)
 
 void CTreeListControl::DrawNode(CDC* pdc, CRect& rc, CRect& rcPlusMinus, const CTreeListItem* item, int* width)
 {
@@ -452,7 +449,7 @@ void CTreeListControl::DrawNode(CDC* pdc, CRect& rc, CRect& rcPlusMinus, const C
             for (int indent = item->GetIndent() - 2; indent >= 0; indent--)
             {
                 ancestor = ancestor->GetParent();
-                if (ancestor->HasSiblings())
+                if (ancestor->HasMoreSiblings())
                 {
                     pdc->BitBlt(rcRest.left + indent * INDENT_WIDTH, rcRest.top, NODE_WIDTH, NODE_HEIGHT, &dcmem, NODE_WIDTH * NODE_LINE, ysrc, SRCCOPY);
                 }
@@ -466,7 +463,7 @@ void CTreeListControl::DrawNode(CDC* pdc, CRect& rc, CRect& rcPlusMinus, const C
             int node;
             if (item->HasChildren())
             {
-                if (item->HasSiblings())
+                if (item->HasMoreSiblings())
                 {
                     if (item->IsExpanded())
                     {
@@ -491,7 +488,7 @@ void CTreeListControl::DrawNode(CDC* pdc, CRect& rc, CRect& rcPlusMinus, const C
             }
             else
             {
-                if (item->HasSiblings())
+                if (item->HasMoreSiblings())
                 {
                     node = NODE_SIBLING;
                 }
@@ -708,9 +705,10 @@ void CTreeListControl::ExpandItem(const int i, const bool scroll)
     UnlockWindowUpdate();
     SetRedraw(TRUE);
 
+    const int padding = 3;
     if (scroll && GetColumnWidth(0) < maxwidth)
     {
-        SetColumnWidth(0, maxwidth);
+        SetColumnWidth(0, maxwidth + padding);
     }
 
     item->SetExpanded(true);
@@ -756,8 +754,16 @@ void CTreeListControl::OnKeyDown(const UINT nChar, const UINT nRepCnt, const UIN
             }
             return;
         }
+        if (nChar == VK_SPACE)
+        {
+            if (items[0]->HasChildren())
+            {
+                ToggleExpansion(FindTreeItem(items[0]));
+                return;
+            }
+        }
     }
- 
+
     COwnerDrawnListControl::OnKeyDown(nChar, nRepCnt, nFlags);
 }
 
@@ -876,7 +882,7 @@ void CTreeListControl::OnContextMenu(CWnd* /*pWnd*/, const CPoint pt)
         return;
     }
 
-    CTreeListItem* item = GetItem(i);
+    const CTreeListItem* item = GetItem(i);
     CRect rc = GetWholeSubitemRect(i, 0);
     const CRect rcTitle = item->GetTitleRect() + rc.TopLeft();
 

@@ -1,21 +1,18 @@
-﻿// TreeMap.h - Declaration of CColorSpace, CTreeMap and CTreeMapPreview
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
@@ -256,18 +253,18 @@ protected:
         RGB(255, 255,   0),  // Yellow
         RGB(  0, 255, 255),  // Cyan
         RGB(255,   0, 255),  // Magenta
-        RGB(255, 170,   0),  // Orange  
-        RGB(  0,  85, 255),  // Dodger Blue  
-        RGB(255,   0,  85),  // Hot Pink  
-        RGB( 85, 255,   0),  // Lime Green  
-        RGB(170,   0, 255),  // Violet  
-        RGB(  0, 255,  85),  // Spring Green  
-        RGB(255,   0, 170),  // Deep Pink  
-        RGB(  0, 170, 255),  // Sky Blue  
-        RGB(255,  85,   0),  // Orange Red  
-        RGB(  0, 255, 170),  // Aquamarine  
+        RGB(255, 170,   0),  // Orange
+        RGB(  0,  85, 255),  // Dodger Blue
+        RGB(255,   0,  85),  // Hot Pink
+        RGB( 85, 255,   0),  // Lime Green
+        RGB(170,   0, 255),  // Violet
+        RGB(  0, 255,  85),  // Spring Green
+        RGB(255,   0, 170),  // Deep Pink
+        RGB(  0, 170, 255),  // Sky Blue
+        RGB(255,  85,   0),  // Orange Red
+        RGB(  0, 255, 170),  // Aquamarine
         RGB( 85,   0, 255),  // Indigo
-        RGB(255, 255, 255),  // White  
+        RGB(255, 255, 255),  // White
     };
 
     CRect m_RenderArea;

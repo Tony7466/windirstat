@@ -1,21 +1,18 @@
-﻿// DirStatDoc.h - Declaration of the CDirStatDoc class
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
@@ -24,6 +21,7 @@
 #include "BlockingQueue.h"
 #include "Options.h"
 #include "GlobalHelpers.h"
+#include "TreeListControl.h"
 
 #include <unordered_map>
 #include <vector>
@@ -31,13 +29,14 @@
 class CItem;
 class CItemDupe;
 class CItemTop;
+class CItemSearch;
 
 //
 // The treemap colors as calculated in CDirStatDoc::SetExtensionColors()
 // all have the "brightness" BASE_BRIGHTNESS.
 // I define brightness as a number from 0 to 3.0: (r+g+b)/255.
 // RGB(127, 255, 0), for example, has a brightness of 2.5.
-// 
+//
 #define BASE_BRIGHTNESS 1.8
 
 //
@@ -86,9 +85,8 @@ protected:
 
     ~CDirStatDoc() override;
 
-    static std::wstring EncodeSelection(RADIO radio, const std::wstring& folder, const std::vector<std::wstring>& drives);
-    static void DecodeSelection(const std::wstring& s, std::wstring& folder, std::vector<std::wstring>& drives);
-    static WCHAR GetEncodingSeparator();
+    static std::wstring EncodeSelection(const std::vector<std::wstring>& folders);
+    static std::vector<std::wstring> DecodeSelection(const std::wstring& encodedPath);
 
     void DeleteContents() override;
     BOOL OnNewDocument() override;
@@ -104,7 +102,6 @@ protected:
     SExtensionRecord* GetExtensionDataRecord(const std::wstring& ext);
     ULONGLONG GetRootSize() const;
 
-    static bool IsDrive(const std::wstring& spec);
     void RefreshReparsePointItems();
 
     bool HasRootItem() const;
@@ -114,6 +111,7 @@ protected:
     CItem* GetZoomItem() const;
     CItemDupe* GetRootItemDupe() const;
     CItemTop* GetRootItemTop() const;
+    CItemSearch* GetRootItemSearch() const;
     bool IsZoomed() const;
 
     void SetHighlightExtension(const std::wstring& ext);
@@ -132,11 +130,11 @@ protected:
     void RecurseRefreshReparsePoints(CItem* items) const;
     std::vector<CItem*> GetDriveItems() const;
     void RebuildExtensionData();
-    bool DeletePhysicalItems(const std::vector<CItem*>& items, bool toTrashBin, bool bypassWarning = false);
+    bool DeletePhysicalItems(const std::vector<CItem*>& items, bool toTrashBin, bool bypassWarning = false, bool doRefresh = true);
     void SetZoomItem(CItem* item);
     static void AskForConfirmation(USERDEFINEDCLEANUP* udc, const CItem* item);
     void PerformUserDefinedCleanup(USERDEFINEDCLEANUP* udc, const CItem* item);
-    void RefreshAfterUserDefinedCleanup(const USERDEFINEDCLEANUP* udc, CItem* item) const;
+    void RefreshAfterUserDefinedCleanup(const USERDEFINEDCLEANUP* udc, CItem* item, std::vector<CItem*> & refreshQueue) const;
     void RecursiveUserDefinedCleanup(USERDEFINEDCLEANUP* udc, const std::wstring& rootPath, const std::wstring& currentPath);
     static void CallUserDefinedCleanup(bool isDirectory, const std::wstring& format, const std::wstring& rootPath, const std::wstring& currentPath, bool showConsoleWindow, bool wait);
     static std::wstring BuildUserDefinedCleanupCommandLine(const std::wstring& format, const std::wstring& rootPath, const std::wstring& currentPath);
@@ -148,6 +146,7 @@ protected:
     static bool FileTreeHasFocus();
     static bool DupeListHasFocus();
     static bool TopListHasFocus();
+    static bool SearchListHasFocus();
     static std::vector<CItem*> GetAllSelected();
     static CTreeListControl* GetFocusControl();
 
@@ -155,13 +154,12 @@ protected:
 
     bool m_ShowFreeSpace; // Whether to show the <Free Space> item
     bool m_ShowUnknown;   // Whether to show the <Unknown> item
-
-    bool m_ShowMyComputer = false; // True, if the user selected more than one drive for scanning.
     // In this case, we need a root pseudo item ("My Computer").
 
     CItem* m_RootItem = nullptr; // The very root item
     CItemDupe* m_RootItemDupe = nullptr; // The very root dupe item
     CItemTop* m_RootItemTop = nullptr; // The very root top item
+    CItemSearch* m_RootItemSearch = nullptr; // The very root search item
     std::wstring m_HighlightExtension; // Currently highlighted extension
     CItem* m_ZoomItem = nullptr;   // Current "zoom root"
 
@@ -199,6 +197,7 @@ protected:
     afx_msg void OnCleanupDeleteToBin();
     afx_msg void OnCleanupDelete();
     afx_msg void OnCleanupEmptyFolder();
+    afx_msg void OnSearch();
     afx_msg void OnUpdateUserDefinedCleanup(CCmdUI* pCmdUI);
     afx_msg void OnUserDefinedCleanup(UINT id);
     afx_msg void OnTreeMapSelectParent();

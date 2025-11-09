@@ -1,26 +1,24 @@
-﻿// TreeListControl.h - Declaration of CTreeListItem and CTreeListControl
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
 
 #include "OwnerDrawnListControl.h"
+#include "GlobalHelpers.h"
 #include "PacMan.h"
 
 #include <vector>
@@ -42,16 +40,15 @@ class CTreeListItem : public COwnerDrawnListItem
     struct VISIBLEINFO final
     {
         CPacman pacman;
-        CRect rcPlusMinus{}; // Coordinates of the little +/- rectangle, relative to the upper left corner of the item.
-        CRect rcTitle{}; // Coordinates of the label, relative to the upper left corner of the item.
         std::wstring owner; // Owner of file or folder
+        CSmallRect rcPlusMinus{}; // Coordinates of the little +/- rectangle, relative to the upper left corner of the item.
+        CSmallRect rcTitle{}; // Coordinates of the label, relative to the upper left corner of the item.
         CTreeListControl* control = nullptr;
         HICON icon = nullptr;  // -1 as long as not needed, >= 0: valid index in IconHandler.
         unsigned char indent; // 0 for the root item, 1 for its children, and so on.
         bool isExpanded = false; // Whether item is expanded.
 
         VISIBLEINFO(const unsigned char iIndent) : indent(iIndent) {}
-        ~VISIBLEINFO() { if (icon != nullptr) DestroyIcon(icon); }
     };
 
 public:
@@ -67,11 +64,11 @@ public:
     virtual int GetTreeListChildCount() const = 0;
     virtual CTreeListItem* GetLinkedItem() { return this; }
 
-    void DrawPacman(const CDC* pdc, const CRect& rc, COLORREF bgColor) const;
+    void DrawPacman(const CDC* pdc, const CRect& rc) const;
     CTreeListItem* GetParent() const;
     void SetParent(CTreeListItem* parent);
     bool IsAncestorOf(const CTreeListItem* item) const;
-    bool HasSiblings() const;
+    bool HasMoreSiblings() const;
     bool HasChildren() const;
     bool IsExpanded() const;
     void SetExpanded(bool expanded = true) const;

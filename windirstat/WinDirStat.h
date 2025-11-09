@@ -1,21 +1,18 @@
-﻿// WinDirStat.h - Main header for the windirstat application
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
@@ -24,7 +21,6 @@
 #include "resource.h"
 #include "Langs.h"
 #include "IconHandler.h"
-#include "MountPoints.h"
 #include "Constants.h"
 #include "Tracer.h"
 
@@ -50,9 +46,7 @@ public:
     static bool InPortableMode();
     bool SetPortableMode(bool enable, bool onlyOpen = false);
 
-    void ReReadMountPoints();
-    bool IsFollowingAllowed(const std::wstring& longpath, DWORD attr = 1) const;
-    CReparsePoints* GetReparseInfo() { return &m_ReparsePoints; }
+    bool IsFollowingAllowed(DWORD reparseTag = 0) const;
 
     COLORREF AltColor() const;           // Coloring of compressed items
     COLORREF AltEncryptionColor() const; // Coloring of encrypted items
@@ -73,12 +67,11 @@ protected:
 
     CSingleDocTemplate* m_PDocTemplate{nullptr}; // MFC voodoo.
 
-    CReparsePoints m_ReparsePoints;   // Mount point information
     CIconHandler m_IconList;          // Our central icon list
     COLORREF m_AltColor;              // Coloring of compressed items
     COLORREF m_AltEncryptionColor;    // Coloring of encrypted items
     static CDirStatApp _singleton;    // Singleton application instance
-#ifdef VTRACE_TO_CONSOLE
+#ifdef _DEBUG
     CAutoPtr<CWDSTracerConsole> m_VtraceConsole;
 #endif // VTRACE_TO_CONSOLE
 

@@ -1,21 +1,18 @@
-﻿// FileDupeControl.cpp - Implementation of FileDupeControl
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -44,22 +41,18 @@ bool CFileDupeControl::GetAscendingDefault(const int column)
         column == COL_ITEMDUP_LASTCHANGE;
 }
 
-#pragma warning(push)
-#pragma warning(disable:26454)
 BEGIN_MESSAGE_MAP(CFileDupeControl, CTreeListControl)
     ON_WM_SETFOCUS()
     ON_WM_KEYDOWN()
     ON_NOTIFY_REFLECT_EX(LVN_DELETEALLITEMS, OnDeleteAllItems)
 END_MESSAGE_MAP()
-#pragma warning(pop)
 
 CFileDupeControl* CFileDupeControl::m_Singleton = nullptr;
 
 void CFileDupeControl::ProcessDuplicate(CItem * item, BlockingQueue<CItem*>* queue)
 {
     if (!COptions::ScanForDuplicates) return;
-    if (COptions::SkipDupeDetectionCloudLinks &&
-        CReparsePoints::IsCloudLink(item->GetPathLong(), item->GetAttributes()))
+    if (COptions::SkipDupeDetectionCloudLinks && item->IsReparseType(ITF_CLOUDLINK))
     {
         std::unique_lock lock(m_HashTrackerMutex);
         if (m_ShowCloudWarningOnThisScan &&
@@ -151,7 +144,7 @@ void CFileDupeControl::SortItems()
 {
     ASSERT(AfxGetThread() != nullptr);
 
-    // Transfer elements to vector so we do not have to hold the lock 
+    // Transfer elements to vector so we do not have to hold the lock
     m_NodeTrackerMutex.lock();
     std::vector<std::pair<CItemDupe*, CItemDupe*>> pendingAdds = m_PendingListAdds;
     m_PendingListAdds.clear();
@@ -211,7 +204,7 @@ void CFileDupeControl::RemoveItem(CItem* item)
             std::erase(m_SizeTracker.at(qitem->GetSizeLogical()), qitem);
             qitem->SetType(ITF_PARTHASH | ITF_FULLHASH, false);
         }
-        else for (const auto& child : qitem->GetChildren())
+        else if (!qitem->IsLeaf()) for (const auto& child : qitem->GetChildren())
         {
             queue.push(child);
         }
@@ -337,7 +330,7 @@ void CFileDupeControl::OnKeyDown(const UINT nChar, const UINT nRepCnt, const UIN
 {
     if (nChar == VK_TAB)
     {
-        CMainFrame::Get()->MoveFocus(LF_EXTENSIONLIST);
+        CMainFrame::Get()->MoveFocus(LF_EXTLIST);
     }
     else if (nChar == VK_ESCAPE)
     {

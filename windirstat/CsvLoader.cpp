@@ -1,21 +1,18 @@
-﻿// CsvLoader.cpp
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -31,6 +28,7 @@
 #include <unordered_map>
 #include <format>
 #include <array>
+#include <execution>
 #include <ranges>
 
 enum : std::uint8_t
@@ -47,7 +45,7 @@ enum : std::uint8_t
     FIELD_COUNT
 };
 
-std::array<CHAR, FIELD_COUNT> orderMap{};
+static std::array<CHAR, FIELD_COUNT> orderMap{};
 static void ParseHeaderLine(const std::vector<std::wstring>& header)
 {
     orderMap.fill(-1);
@@ -167,7 +165,6 @@ CItem* LoadResults(const std::wstring & path)
         const bool isRoot = (type & ITF_ROOTITEM);
         const bool isInRoot = (type & IT_DRIVE) || (type & IT_UNKNOWN) || (type & IT_FREESPACE);
         const bool useFullPath = isRoot || isInRoot;
-        const std::wstring mapPath = fields[orderMap[FIELD_NAME]];
         LPWSTR lookupPath = fields[orderMap[FIELD_NAME]].data();
         LPWSTR displayName = useFullPath ? lookupPath : wcsrchr(lookupPath, L'\\');
         if (!useFullPath && displayName != nullptr)
@@ -203,6 +200,10 @@ CItem* LoadResults(const std::wstring & path)
 
         if (!newitem->TmiIsLeaf() && newitem->GetItemsCount() > 0)
         {
+            // Restore full path for parent assignment
+            if (lookupPath != displayName) lookupPath[wcslen(lookupPath)] = wds::chrBackslash;
+
+            const std::wstring & mapPath = fields[orderMap[FIELD_NAME]];
             parentMap[mapPath] = newitem;
 
             // Special case: also add mapping for drive without backslash
@@ -219,14 +220,43 @@ CItem* LoadResults(const std::wstring & path)
     return newroot;
 }
 
-bool SaveResults(const std::wstring& path, CItem * item)
+bool SaveResults(const std::wstring& path, CItem * rootItem)
 {
+
+    // Vector to store all entries
+    std::vector<const CItem*> items;
+    items.reserve(static_cast<size_t>(rootItem->GetItemsCount()));
+
+    // Output all items to file
+    std::stack<CItem*> queue({ rootItem });
+    while (!queue.empty())
+    {
+        // Grab item from queue
+        const CItem* qitem = queue.top();
+        queue.pop();
+        items.push_back(qitem);
+
+        // Descend into childitems
+        if (qitem->IsLeaf()) continue;
+        for (const auto& child : qitem->GetChildren())
+        {
+            queue.push(child);
+        }
+    }
+
+    // Sort results
+    std::sort(std::execution::par_unseq, items.begin(), items.end(),
+        [](const CItem* a, const CItem* b) {
+            if (a->IsRootItem() != b->IsRootItem()) return a->IsRootItem();
+            return a->GetPath() < b->GetPath();
+        });
+
     // Output header line to file
     std::ofstream outf;
     outf.open(path, std::ios::binary);
 
     // Determine columns
-    std::vector<std::wstring> cols =
+    std::vector cols =
     {
         Localization::Lookup(IDS_COL_NAME),
         Localization::Lookup(IDS_COL_FILES),
@@ -250,40 +280,28 @@ bool SaveResults(const std::wstring& path, CItem * item)
 
     // Output all items to file
     outf << "\r\n";
-    std::stack<CItem*> queue({ item });
-    while (!queue.empty())
+    for (const auto item : items)
     {
-        // Grab item from queue
-        const CItem* qitem = queue.top();
-        queue.pop();
-
         // Output primary columns
-        const bool nonPathItem = qitem->IsType(IT_MYCOMPUTER | IT_UNKNOWN | IT_FREESPACE);
+        const bool nonPathItem = item->IsType(IT_MYCOMPUTER | IT_UNKNOWN | IT_FREESPACE);
         outf << std::format("{},{},{},{},{},0x{:08X},{},0x{:04X}",
-            QuoteAndConvert(nonPathItem ? qitem->GetName() : qitem->GetPath()),
-            qitem->GetFilesCount(),
-            qitem->GetFoldersCount(),
-            qitem->GetSizeLogical(),
-            qitem->GetSizePhysical(),
-            qitem->GetAttributes(),
-            ToTimePoint(qitem->GetLastChange()),
-            static_cast<unsigned short>(qitem->GetRawType()));
+            QuoteAndConvert(nonPathItem ? item->GetName() : item->GetPath()),
+            item->GetFilesCount(),
+            item->GetFoldersCount(),
+            item->GetSizeLogical(),
+            item->GetSizePhysical(),
+            item->GetAttributes(),
+            ToTimePoint(item->GetLastChange()),
+            static_cast<unsigned short>(item->GetRawType()));
 
         // Output additional columns
         if (COptions::ShowColumnOwner)
         {
-            outf << "," << QuoteAndConvert(qitem->GetOwner(true));
+            outf << "," << QuoteAndConvert(item->GetOwner(true));
         }
 
         // Finalize lines
         outf << "\r\n";
-
-        // Descend into childitems
-        if (qitem->IsType(IT_FILE)) continue;
-        for (const auto& child : qitem->GetChildren())
-        {
-            queue.push(child);
-        }
     }
 
     outf.close();

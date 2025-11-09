@@ -1,21 +1,18 @@
-﻿// TreeMapView.cpp - Implementation of CTreeMapView
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -180,9 +177,10 @@ void CTreeMapView::DrawHighlights(CDC* pdc)
     case LF_DUPELIST:
     case LF_TOPLIST:
     case LF_FILETREE:
+    case LF_SEARCHLIST:
         DrawSelection(pdc);
         break;
-    case LF_EXTENSIONLIST:
+    case LF_EXTLIST:
         DrawHighlightExtension(pdc);
         break;
     case LF_NONE:
@@ -203,7 +201,11 @@ void CTreeMapView::DrawHighlightExtension(CDC* pdc)
 void CTreeMapView::RecurseHighlightExtension(CDC* pdc, const CItem* item)
 {
     CRect rc(item->TmiGetRectangle());
-    rc.OffsetRect(4, 4);
+    if (GetDocument()->IsZoomed())
+    {
+        rc.OffsetRect(ZoomFrameWidth, ZoomFrameWidth);
+    }
+
     if (rc.Width() <= 0 || rc.Height() <= 0)
     {
         return;
@@ -371,8 +373,7 @@ void CTreeMapView::Inactivate()
     blendFunc.BlendFlags = 0;
     blendFunc.SourceConstantAlpha = 175;
     blendFunc.AlphaFormat = 0;
-    CBrush brush(RGB(0, 0, 0));
-    dcmem.FillRect(CRect(0, 0, m_DimmedSize.cx, m_DimmedSize.cy), &brush);
+    dcmem.FillSolidRect(CRect(0, 0, m_DimmedSize.cx, m_DimmedSize.cy), RGB(0, 0, 0));
     dcmem.AlphaBlend(0, 0, m_DimmedSize.cx, m_DimmedSize.cy, &dc,
         0, 0, m_DimmedSize.cx, m_DimmedSize.cy, blendFunc);
 }

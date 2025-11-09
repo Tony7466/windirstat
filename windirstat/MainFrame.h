@@ -1,21 +1,18 @@
-﻿// MainFrame.h - Declaration of CMySplitterWnd and CMainFrame
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
@@ -23,6 +20,7 @@
 #include "PacMan.h"
 #include "Item.h"
 #include "FileTabbedView.h"
+#include "DarkMode.h"
 
 #include <functional>
 
@@ -42,38 +40,43 @@ class CExtensionView;
 //
 enum LOGICAL_FOCUS : std::uint8_t
 {
-    LF_NONE,
+    LF_NONE = 0,
     LF_FILETREE,
     LF_DUPELIST,
     LF_TOPLIST,
-    LF_EXTENSIONLIST
+    LF_SEARCHLIST,
+    LF_EXTLIST,
 };
 
 //
 // COptionsPropertySheet. The options dialog.
 //
-class COptionsPropertySheet final : public CPropertySheet
+class COptionsPropertySheet final : public CMFCPropertySheet
 {
     DECLARE_DYNAMIC(COptionsPropertySheet)
 
     COptionsPropertySheet();
-    void SetLanguageChanged(bool changed);
+    void SetRestartRequired(bool changed);
     BOOL OnInitDialog() override;
 
     bool m_RestartApplication = false; // [out]
 
 protected:
     BOOL OnCommand(WPARAM wParam, LPARAM lParam) override;
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+    afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 
-    bool m_LanguageChanged = false;
+    bool m_RestartRequest = false;
     bool m_AlreadyAsked = false;
+
+    DECLARE_MESSAGE_MAP()
 };
 
 //
 // CMySplitterWnd. A CSplitterWnd with 2 columns or rows, which
 // knows about the current split ratio and retains it even when resized.
 //
-class CMySplitterWnd final : public CSplitterWnd
+class CMySplitterWnd final : public CSplitterWndEx
 {
 public:
     CMySplitterWnd(double * splitterPos);
@@ -88,9 +91,6 @@ protected:
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnSize(UINT nType, int cx, int cy);
-
-public:
-    afx_msg void OnDestroy();
 };
 
 //
@@ -99,7 +99,7 @@ public:
 class CPacmanControl final : public CStatic
 {
 public:
-    CPacmanControl();
+    CPacmanControl() = default;
     void Drive();
     void Start();
     void Stop();
@@ -163,6 +163,7 @@ protected:
     CFileTreeView* GetFileTreeView() const { return m_FileTabbedView->GetFileTreeView(); }
     CFileTopView* GetFileTopView() const { return m_FileTabbedView->GetFileTopView(); }
     CFileDupeView* GetFileDupeView() const { return m_FileTabbedView->GetFileDupeView(); }
+    CFileSearchView* GetFileSearchView() const { return m_FileTabbedView->GetFileSearchView(); }
     CFileTabbedView* GetFileTabbedView() const { return m_FileTabbedView; }
     CTreeMapView* GetTreeMapView() const { return m_TreeMapView; }
     CExtensionView* GetExtensionView() const { return m_ExtensionView; }
@@ -228,14 +229,23 @@ protected:
     afx_msg void OnUpdateEnableControl(CCmdUI* pCmdUI);
     afx_msg void OnSize(UINT nType, int cx, int cy);
     afx_msg void OnUpdateViewShowTreeMap(CCmdUI* pCmdUI);
-    afx_msg void OnViewShowtreemap();
+    afx_msg void OnUpdateTreeMapUseLogical(CCmdUI* pCmdUI);
+    afx_msg void OnViewShowTreeMap();
+    afx_msg void OnViewTreeMapUseLogical();
     afx_msg void OnUpdateViewShowFileTypes(CCmdUI* pCmdUI);
     afx_msg void OnViewShowFileTypes();
+    afx_msg void OnViewAllFiles() { GetFileTabbedView()->SetActiveFileTreeView(); }
+    afx_msg void OnViewLargestFiles() { GetFileTabbedView()->SetActiveTopView(); }
+    afx_msg void OnViewDuplicateFiles() { GetFileTabbedView()->SetActiveDupeView(); }
+    afx_msg void OnViewSearchResults() { GetFileTabbedView()->SetActiveSearchView(); }
     afx_msg void OnConfigure();
     afx_msg void OnDestroy();
     afx_msg LRESULT OnTaskButtonCreated(WPARAM, LPARAM);
     afx_msg void OnSysColorChange();
-
+    afx_msg LRESULT OnUahDrawMenu(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnUahDrawMenuItem(WPARAM wParam, LPARAM lParam);
+    afx_msg void OnNcPaint();
+    afx_msg BOOL OnNcActivate(BOOL bActive);
 public:
     static CMainFrame* Get() { return s_Singleton; }
     BOOL LoadFrame(UINT nIDResource, DWORD dwDefaultStyle = WS_OVERLAPPEDWINDOW | FWS_ADDTOTITLE, CWnd* pParentWnd = NULL, CCreateContext* pContext = NULL) override;

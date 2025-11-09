@@ -1,21 +1,18 @@
-﻿// FileTopControl.h - Declaration of CFileTopControl and CFileTreeView
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #pragma once
@@ -25,7 +22,6 @@
 
 #include <set>
 #include <unordered_map>
-#include <shared_mutex>
 
 class CFileTopControl final : public CTreeListControl
 {
@@ -43,11 +39,12 @@ protected:
     // Custom comparator to keep the list organized by size
     static constexpr auto CompareBySize = [](const CItem* lhs, const CItem* rhs)
     {
-        return lhs->GetSizePhysical() < rhs->GetSizePhysical();
+        return lhs->GetSizeLogical() > rhs->GetSizeLogical();
     };
 
     static CFileTopControl* m_Singleton;
-    std::shared_mutex m_SizeMutex;
+    std::mutex m_SizeMutex;
+    std::vector<CItem*> m_QueuedSet;
     std::multiset<CItem*, decltype(CompareBySize)> m_SizeMap;
     std::unordered_map<CItem*, CItemTop*> m_ItemTracker;
 

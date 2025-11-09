@@ -1,21 +1,18 @@
-﻿// FileTopControl.cpp - Implementation of FileTopControl
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
-// This program is free software; you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
+// the Free Software Foundation, either version 2 of the License, or
+// at your option any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
 #include "stdafx.h"
@@ -41,14 +38,11 @@ bool CFileTopControl::GetAscendingDefault(const int column)
         column == COL_ITEMTOP_LASTCHANGE;
 }
 
-#pragma warning(push)
-#pragma warning(disable:26454)
 BEGIN_MESSAGE_MAP(CFileTopControl, CTreeListControl)
     ON_WM_SETFOCUS()
     ON_WM_KEYDOWN()
     ON_NOTIFY_REFLECT_EX(LVN_DELETEALLITEMS, OnDeleteAllItems)
 END_MESSAGE_MAP()
-#pragma warning(pop)
 
 CFileTopControl* CFileTopControl::m_Singleton = nullptr;
 
@@ -58,7 +52,7 @@ void CFileTopControl::ProcessTop(CItem * item)
     if (COptions::LargeFileCount == 0) return;
 
     std::lock_guard guard(m_SizeMutex);
-    m_SizeMap.emplace(item);
+    m_QueuedSet.emplace_back(item);
 }
 
 void CFileTopControl::SortItems()
@@ -68,20 +62,19 @@ void CFileTopControl::SortItems()
     // Verify at least root exists
     if (GetItemCount() == 0) return;
 
-    // Reverse iterate over the multimap
+    // Quickly copy the items to a vector to free mutex
     m_SizeMutex.lock();
-    std::unordered_set<CItem*> largestItems;
-    largestItems.reserve(COptions::LargeFileCount);
-    for (auto& pItem : m_SizeMap | std::views::reverse | std::views::take(COptions::LargeFileCount.Obj()))
-    {
-        largestItems.emplace(pItem);
-    }
+    std::vector<CItem*> queuedItems = m_QueuedSet;
+    m_QueuedSet.clear();
     m_SizeMutex.unlock();
+
+    // Insert into map
+    m_SizeMap.insert(queuedItems.begin(), queuedItems.end());
 
     SetRedraw(FALSE);
     const auto root = reinterpret_cast<CItemTop*>(GetItem(0));
     auto itemTrackerCopy = std::unordered_map(m_ItemTracker);
-    for (auto& largeItem : largestItems)
+    for (const auto& largeItem : m_SizeMap | std::views::take(COptions::LargeFileCount.Obj()))
     {
         if (m_ItemTracker.contains(largeItem))
         {
@@ -115,7 +108,7 @@ void CFileTopControl::RemoveItem(CItem* item)
         {
             m_SizeMap.erase(qitem);
         }
-        else for (const auto& child : qitem->GetChildren())
+        else if (!qitem->IsLeaf()) for (const auto& child : qitem->GetChildren())
         {
             queue.push(child);
         }
@@ -162,7 +155,7 @@ void CFileTopControl::OnKeyDown(const UINT nChar, const UINT nRepCnt, const UINT
 {
     if (nChar == VK_TAB)
     {
-        CMainFrame::Get()->MoveFocus(LF_EXTENSIONLIST);
+        CMainFrame::Get()->MoveFocus(LF_EXTLIST);
     }
     else if (nChar == VK_ESCAPE)
     {
