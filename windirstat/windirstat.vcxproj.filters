@@ -140,9 +140,6 @@
     <ClInclude Include="MainFrame.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ModalApiShuttle.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Options.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -302,6 +299,12 @@
     <ClInclude Include="DarkMode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Dialogs\ProgressDlg.h">
+      <Filter>Header Files\Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="Pages\PagePrompts.h">
+      <Filter>Header Files\Pages</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DirStatDoc.cpp">
@@ -317,9 +320,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="MainFrame.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ModalApiShuttle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Options.cpp">
@@ -447,6 +447,12 @@
     </ClCompile>
     <ClCompile Include="Dialogs\MessageBoxDlg.cpp">
       <Filter>Source Files\Dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="Dialogs\ProgressDlg.cpp">
+      <Filter>Source Files\Dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="Pages\PagePrompts.cpp">
+      <Filter>Source Files\Pages</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -32,6 +32,7 @@
 #include "PageFileTree.h"
 #include "PageTreeMap.h"
 #include "PageGeneral.h"
+#include "PagePrompts.h"
 #include "MainFrame.h"
 #include "SelectObject.h"
 #include "FileTopControl.h"
@@ -90,7 +91,7 @@ END_MESSAGE_MAP()
 
 BOOL COptionsPropertySheet::OnEraseBkgnd(CDC* pDC)
 {
-    if (!DarkMode::IsDarkModeActive() || !DarkMode::IsDarkModeActive())
+    if (!DarkMode::IsDarkModeActive())
     {
         return CMFCPropertySheet::OnEraseBkgnd(pDC);
     }
@@ -132,7 +133,7 @@ BOOL COptionsPropertySheet::OnCommand(const WPARAM wParam, const LPARAM lParam)
         if (m_RestartRequest && (IDOK == cmd || !m_AlreadyAsked))
         {
             const int r = WdsMessageBox(*this, Localization::Lookup(IDS_RESTART_REQUEST),
-                Localization::Lookup(IDS_APP_TITLE), MB_YESNOCANCEL);
+                Localization::LookupNeutral(AFX_IDS_APP_TITLE), MB_YESNOCANCEL);
             if (IDCANCEL == r)
             {
                 return true; // "Message handled". Don't proceed.
@@ -295,14 +296,15 @@ void CPacmanControl::Stop()
     m_Pacman.Stop();
 }
 
-BEGIN_MESSAGE_MAP(CPacmanControl, CStatic)
+BEGIN_MESSAGE_MAP(CPacmanControl, CWnd)
     ON_WM_PAINT()
     ON_WM_CREATE()
+    ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
 int CPacmanControl::OnCreate(const LPCREATESTRUCT lpCreateStruct)
 {
-    if (CStatic::OnCreate(lpCreateStruct) == -1)
+    if (CWnd::OnCreate(lpCreateStruct) == -1)
     {
         return -1;
     }
@@ -312,6 +314,12 @@ int CPacmanControl::OnCreate(const LPCREATESTRUCT lpCreateStruct)
     return 0;
 }
 
+BOOL CPacmanControl::OnEraseBkgnd(CDC* pDC)
+{
+    UNREFERENCED_PARAMETER(pDC);
+    return TRUE;
+}
+
 void CPacmanControl::OnPaint()
 {
     // Setup double buffering
@@ -319,14 +327,19 @@ void CPacmanControl::OnPaint()
     CDC memDC;
     memDC.CreateCompatibleDC(&dc);
 
-    CBitmap bm;
     CRect rect;
     GetClientRect(&rect);
+
+    CBitmap bm;
     bm.CreateCompatibleBitmap(&dc, rect.Width(), rect.Height());
     CSelectObject sobm(&memDC, &bm);
 
     // Draw the animation
     m_Pacman.Draw(&memDC, rect);
+
+    // Draw the borders
+    CMFCVisualManager::GetInstance()->OnDrawStatusBarPaneBorder(
+        &memDC, &CMainFrame::Get()->m_WndStatusBar, rect, 0, CMainFrame::Get()->GetStyle());
 
     // Copy memory DC to screen DC
     dc.BitBlt(0, 0, rect.Width(), rect.Height(), &memDC, 0, 0, SRCCOPY);
@@ -371,7 +384,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWndEx)
     ON_MESSAGE(WM_EXITSIZEMOVE, OnExitSizeMove)
     ON_MESSAGE(WM_CALLBACKUI, OnCallbackRequest)
     ON_MESSAGE(DarkMode::WM_UAHDRAWMENU, OnUahDrawMenu)
-    ON_MESSAGE(DarkMode::WM_UAHDRAWMENUITEM, OnUahDrawMenuItem)
+    ON_MESSAGE(DarkMode::WM_UAHDRAWMENUITEM, OnUahDrawMenu)
     ON_REGISTERED_MESSAGE(s_TaskBarMessage, OnTaskButtonCreated)
     ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWFILETYPES, OnUpdateViewShowFileTypes)
     ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWTREEMAP, OnUpdateViewShowTreeMap)
@@ -438,7 +451,7 @@ LRESULT CMainFrame::OnTaskButtonCreated(WPARAM, LPARAM)
 void CMainFrame::CreateProgress(ULONGLONG range)
 {
     // Directory structure may contain other volume or internal loops
-    // so set range to indicate these is no range so display pacman
+    // so set range to indicate there is no range so display pacman
     if (!COptions::ExcludeVolumeMountPoints ||
         !COptions::ExcludeJunctions ||
         !COptions::ExcludeSymbolicLinksDirectory)
@@ -595,9 +608,10 @@ void CMainFrame::CreatePacmanProgress()
 {
     if (m_Pacman.m_hWnd == nullptr)
     {
+        // Get rectangle and remove top/bottom border dimension
         CRect rc;
         m_WndStatusBar.GetItemRect(0, rc);
-        m_Pacman.Create(wds::strEmpty, WS_CHILD | WS_VISIBLE, rc, &m_WndStatusBar, ID_WDS_CONTROL);
+        m_Pacman.Create(nullptr, nullptr, WS_CHILD | WS_VISIBLE, rc, &m_WndStatusBar, ID_WDS_CONTROL);
         m_Pacman.Start();
     }
 }
@@ -806,7 +820,7 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT /*lpcs*/, CCreateContext* pContex
 BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 {
     // seed initial Title bar text
-    static std::wstring title = Localization::Lookup(IDS_APP_TITLE) + (IsElevationActive() ? L" (Administrator)" : L"");
+    static std::wstring title = Localization::LookupNeutral(AFX_IDS_APP_TITLE) + (IsElevationActive() ? L" (Administrator)" : L"");
     cs.style &= ~FWS_ADDTOTITLE;
     cs.lpszName = title.c_str();
 
@@ -948,24 +962,24 @@ void CMainFrame::OnInitMenuPopup(CMenu* pPopupMenu, const UINT nIndex, const BOO
 
 void CMainFrame::UpdateCleanupMenu(CMenu* menu) const
 {
-    ULONGLONG items;
-    ULONGLONG bytes;
-    QueryRecycleBin(items, bytes);
+    struct { void (*queryFunc)(ULONGLONG&, ULONGLONG&); UINT menuId; LPCWSTR prefix; } menuItems[] = {
+        { QueryRecycleBin, ID_CLEANUP_EMPTY_BIN, IDS_EMPTY_RECYCLEBIN.data() },
+        { QueryShadowCopies, ID_CLEANUP_REMOVE_SHADOW, IDS_MENU_REMOVE_SHADOW.data() }
+    };
 
-    std::wstring info;
-    if (items == 1)
+    for (const auto& [queryFunc, menuId, prefix] : menuItems)
     {
-        info = Localization::Format(IDS_ONEITEMs, FormatBytes(bytes));
-    }
-    else
-    {
-        info = Localization::Format(IDS_sITEMSs, FormatCount(items), FormatBytes(bytes));
-    }
+        ULONGLONG count, bytes;
+        queryFunc(count, bytes);
 
-    const std::wstring s = Localization::Lookup(IDS_EMPTYRECYCLEBIN) + info;
-    const UINT state = menu->GetMenuState(ID_CLEANUP_EMPTY_BIN, MF_BYCOMMAND);
-    VERIFY(menu->ModifyMenu(ID_CLEANUP_EMPTY_BIN, MF_BYCOMMAND | MF_STRING, ID_CLEANUP_EMPTY_BIN, s.c_str()));
-    menu->EnableMenuItem(ID_CLEANUP_EMPTY_BIN, state);
+        const std::wstring label = Localization::Lookup(prefix) + ((count == 1) ?
+            Localization::Format(IDS_ONEITEMs, FormatBytes(bytes)) :
+            Localization::Format(IDS_sITEMSs, FormatCount(count), FormatBytes(bytes)));
+
+        const UINT state = menu->GetMenuState(menuId, MF_BYCOMMAND);
+        VERIFY(menu->ModifyMenu(menuId, MF_BYCOMMAND | MF_STRING, menuId, label.c_str()));
+        menu->EnableMenuItem(menuId, state);
+    }
 
     UpdateDynamicMenuItems(menu);
 }
@@ -1048,7 +1062,7 @@ void CMainFrame::UpdateDynamicMenuItems(CMenu* menu) const
     for (auto& item : items) paths.push_back(item->GetPath());
 
     // locate submenu and merge explorer items
-    auto [explorerMenu, explorerMenuPos] = LocateNamedMenu(menu, Localization::Lookup(IDS_POPUP_TREE_EXPLORER_MENU));
+    auto [explorerMenu, explorerMenuPos] = LocateNamedMenu(menu, Localization::Lookup(IDS_MENU_EXPLORER_MENU));
     if (explorerMenu != nullptr && !paths.empty())
     {
         CComPtr contextMenu = GetContextMenu(Get()->GetSafeHwnd(), paths);
@@ -1247,6 +1261,7 @@ void CMainFrame::OnConfigure()
     CPageFileTree treelist;
     CPageTreeMap treemap;
     CPageCleanups cleanups;
+    CPagePrompts prompts;
     CPageAdvanced advanced;
 
     sheet.AddPage(&general);
@@ -1254,6 +1269,7 @@ void CMainFrame::OnConfigure()
     sheet.AddPage(&treelist);
     sheet.AddPage(&treemap);
     sheet.AddPage(&cleanups);
+    sheet.AddPage(&prompts);
     sheet.AddPage(&advanced);
 
     sheet.DoModal();
@@ -1269,41 +1285,18 @@ void CMainFrame::OnConfigure()
 
 void CMainFrame::OnSysColorChange()
 {
-    DarkMode::SetAppDarkMode();
     CFrameWndEx::OnSysColorChange();
     GetFileTreeView()->SysColorChanged();
     GetExtensionView()->SysColorChanged();
 
-    // Redraw splitter windows
-    m_Splitter.Invalidate();
-    m_SubSplitter.Invalidate();
-
     // Redraw menus for dark mode
-    DrawMenuBar();
+    DarkMode::SetAppDarkMode();
+    RedrawWindow();
 }
 
 LRESULT CMainFrame::OnUahDrawMenu(WPARAM wParam, LPARAM lParam)
 {
-    if (DarkMode::UAHMENU* pUDM = reinterpret_cast<DarkMode::UAHMENU*>(lParam);
-        pUDM && DarkMode::IsDarkModeActive())
-    {
-        DarkMode::DrawMenuBar(this->GetSafeHwnd(), pUDM);
-        return 1;
-    }
-
-    return DefWindowProc(DarkMode::WM_UAHDRAWMENU, wParam, lParam);
-}
-
-LRESULT CMainFrame::OnUahDrawMenuItem(WPARAM wParam, LPARAM lParam)
-{
-    if (DarkMode::UAHDRAWMENUITEM* pUDMI = reinterpret_cast<DarkMode::UAHDRAWMENUITEM*>(lParam);
-      pUDMI && DarkMode::IsDarkModeActive())
-    {
-         DarkMode::DrawMenuItem(m_hWnd, pUDMI);
-         return 1;
-    }
-
-    return DefWindowProcW(DarkMode::WM_UAHDRAWMENUITEM, wParam, lParam);
+    return DarkMode::HandleMenuMessage(GetCurrentMessage()->message, wParam, lParam, *this);
 }
 
 void CMainFrame::OnNcPaint()
@@ -1330,7 +1323,7 @@ BOOL CMainFrame::LoadFrame(const UINT nIDResource, const DWORD dwDefaultStyle, C
 
     Localization::UpdateMenu(*GetMenu());
     Localization::UpdateDialogs(*this);
-    SetTitle(Localization::Lookup(IDS_APP_TITLE).c_str());
+    SetTitle(Localization::LookupNeutral(AFX_IDS_APP_TITLE).c_str());
 
     return TRUE;
 }

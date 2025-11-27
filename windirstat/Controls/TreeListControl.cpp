@@ -16,14 +16,12 @@
 //
 
 #include "stdafx.h"
-#include "WinDirStat.h"
 #include "DirStatDoc.h"
 #include "SelectObject.h"
 #include "TreeListControl.h"
 #include "MainFrame.h"
 #include "Localization.h"
 
-#include <algorithm>
 #include <ranges>
 
 namespace
@@ -82,7 +80,7 @@ std::wstring CTreeListItem::GetText(int /*subitem*/) const
     return {};
 }
 
-void CTreeListItem::DrawPacman(const CDC* pdc, const CRect& rc) const
+void CTreeListItem::DrawPacman(CDC* pdc, const CRect& rc) const
 {
     ASSERT(IsVisible());
     m_VisualInfo->pacman.Draw(pdc, rc);
@@ -439,17 +437,17 @@ void CTreeListControl::DrawNode(CDC* pdc, CRect& rc, CRect& rcPlusMinus, const C
 
         CDC dcmem;
         dcmem.CreateCompatibleDC(pdc);
-        CSelectObject sonodes(&dcmem, IsItem_stripeColor(item) ? &m_BmNodes1 : &m_BmNodes0);
+        CSelectObject sonodes(&dcmem, IsItemStripColor(FindTreeItem(item)) ? &m_BmNodes1 : &m_BmNodes0);
 
         const int ysrc = NODE_HEIGHT / 2 - GetRowHeight() / 2;
 
         if (width == nullptr)
         {
             const CTreeListItem* ancestor = item;
-            for (int indent = item->GetIndent() - 2; indent >= 0; indent--)
+            for (int indent = item->GetIndent() - 1; indent >= 0; indent--)
             {
                 ancestor = ancestor->GetParent();
-                if (ancestor->HasMoreSiblings())
+                if (ancestor->GetTreeListChildCount() > 1)
                 {
                     pdc->BitBlt(rcRest.left + indent * INDENT_WIDTH, rcRest.top, NODE_WIDTH, NODE_HEIGHT, &dcmem, NODE_WIDTH * NODE_LINE, ysrc, SRCCOPY);
                 }
@@ -460,42 +458,12 @@ void CTreeListControl::DrawNode(CDC* pdc, CRect& rc, CRect& rcPlusMinus, const C
 
         if (width == nullptr)
         {
-            int node;
+            int node = item->HasMoreSiblings() ? NODE_SIBLING : NODE_END;
             if (item->HasChildren())
             {
-                if (item->HasMoreSiblings())
-                {
-                    if (item->IsExpanded())
-                    {
-                        node = NODE_MINUS_SIBLING;
-                    }
-                    else
-                    {
-                        node = NODE_PLUS_SIBLING;
-                    }
-                }
-                else
-                {
-                    if (item->IsExpanded())
-                    {
-                        node = NODE_MINUS_END;
-                    }
-                    else
-                    {
-                        node = NODE_PLUS_END;
-                    }
-                }
-            }
-            else
-            {
-                if (item->HasMoreSiblings())
-                {
-                    node = NODE_SIBLING;
-                }
-                else
-                {
-                    node = NODE_END;
-                }
+                node = item->HasMoreSiblings() ?
+                    (item->IsExpanded() ? NODE_MINUS_SIBLING : NODE_PLUS_SIBLING) :
+                    (item->IsExpanded() ? NODE_MINUS_END : NODE_PLUS_END);
             }
 
             pdc->BitBlt(rcRest.left, rcRest.top, NODE_WIDTH, NODE_HEIGHT, &dcmem, NODE_WIDTH * node, ysrc, SRCCOPY);
@@ -505,6 +473,7 @@ void CTreeListControl::DrawNode(CDC* pdc, CRect& rc, CRect& rcPlusMinus, const C
             rcPlusMinus.top = rcRest.top + rcRest.Height() / 2 - HOTNODE_CY / 2 - 1;
             rcPlusMinus.bottom = rcPlusMinus.top + HOTNODE_CY;
         }
+
         rcRest.left += NODE_WIDTH;
     }
 
@@ -705,9 +674,9 @@ void CTreeListControl::ExpandItem(const int i, const bool scroll)
     UnlockWindowUpdate();
     SetRedraw(TRUE);
 
-    const int padding = 3;
     if (scroll && GetColumnWidth(0) < maxwidth)
     {
+        constexpr int padding = 3;
         SetColumnWidth(0, maxwidth + padding);
     }
 

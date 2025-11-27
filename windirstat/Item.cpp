@@ -97,23 +97,13 @@ CItem::~CItem()
     }
 }
 
-CRect CItem::TmiGetRectangle() const
-{
-    return tmiRect;
-}
-
-void CItem::TmiSetRectangle(const CRect& rc)
-{
-    tmiRect = rc;
-}
-
 bool CItem::DrawSubItem(const int subitem, CDC* pdc, CRect rc, const UINT state, int* width, int* focusLeft)
 {
     if (subitem == COL_NAME)
     {
         return CTreeListItem::DrawSubItem(subitem, pdc, rc, state, width, focusLeft);
     }
-    if (subitem != COL_SUBTREEPERCENTAGE)
+    if (subitem != COL_SUBTREE_PERCENTAGE)
     {
         return false;
     }
@@ -167,7 +157,7 @@ std::wstring CItem::GetText(const int subitem) const
     case COL_NAME:
         if (IsType(IT_DRIVE))
         {
-            return GetName().substr(std::size(L"?:"));;
+            return GetName().substr(std::size(L"?:"));
         }
         return GetName();
 
@@ -178,7 +168,7 @@ std::wstring CItem::GetText(const int subitem) const
         }
         break;
 
-    case COL_SUBTREEPERCENTAGE:
+    case COL_SUBTREE_PERCENTAGE:
         if (!IsDone())
         {
             if (GetReadJobs() == 1)
@@ -218,7 +208,7 @@ std::wstring CItem::GetText(const int subitem) const
         }
         break;
 
-    case COL_LASTCHANGE:
+    case COL_LAST_CHANGE:
         if (!IsType(IT_FREESPACE | IT_UNKNOWN))
         {
             return FormatFileTime(m_LastChange);
@@ -280,7 +270,7 @@ int CItem::CompareSibling(const CTreeListItem* tlib, const int subitem) const
             return signum(_wcsicmp(m_Name.get(), other->m_Name.get()));
         }
 
-        case COL_SUBTREEPERCENTAGE:
+        case COL_SUBTREE_PERCENTAGE:
         {
             if (MustShowReadJobs())
             {
@@ -322,7 +312,7 @@ int CItem::CompareSibling(const CTreeListItem* tlib, const int subitem) const
             return usignum(GetFoldersCount(), other->GetFoldersCount());
         }
 
-        case COL_LASTCHANGE:
+        case COL_LAST_CHANGE:
         {
             if (m_LastChange < other->m_LastChange)
             {
@@ -351,17 +341,6 @@ int CItem::CompareSibling(const CTreeListItem* tlib, const int subitem) const
             return 0;
         }
     }
-}
-
-int CItem::GetTreeListChildCount() const
-{
-    if (IsLeaf()) return 0;
-    return static_cast<int>(GetChildren().size());
-}
-
-CTreeListItem* CItem::GetTreeListChild(const int i) const
-{
-    return GetChildren()[i];
 }
 
 HICON CItem::GetIcon()
@@ -536,7 +515,7 @@ void CItem::AddChild(CItem* child, const bool addOnly)
 
     child->SetParent(this);
 
-    std::lock_guard guard(m_FolderInfo->m_Protect);
+    std::scoped_lock guard(m_FolderInfo->m_Protect);
     m_FolderInfo->m_Children.push_back(child);
 
     if (IsVisible() && IsExpanded())
@@ -550,7 +529,7 @@ void CItem::AddChild(CItem* child, const bool addOnly)
 
 void CItem::RemoveChild(CItem* child)
 {
-    std::lock_guard guard(m_FolderInfo->m_Protect);
+    std::scoped_lock guard(m_FolderInfo->m_Protect);
     std::erase(m_FolderInfo->m_Children, child);
 
     if (IsVisible())
@@ -577,7 +556,7 @@ void CItem::RemoveAllChildren()
         CFileTreeControl::Get()->OnRemovingAllChildren(this);
     });
 
-    std::lock_guard guard(m_FolderInfo->m_Protect);
+    std::scoped_lock guard(m_FolderInfo->m_Protect);
     for (const auto& child : m_FolderInfo->m_Children)
     {
         delete child;
@@ -988,7 +967,7 @@ void CItem::SortItemsBySizePhysical() const
     if (IsLeaf()) return;
 
     // sort by size for proper treemap rendering
-    std::lock_guard guard(m_FolderInfo->m_Protect);
+    std::scoped_lock guard(m_FolderInfo->m_Protect);
     m_FolderInfo->m_Children.shrink_to_fit();
     std::ranges::sort(m_FolderInfo->m_Children, [](auto item1, auto item2)
         {
@@ -1001,7 +980,7 @@ void CItem::SortItemsBySizeLogical() const
     if (IsLeaf()) return;
     
     // sort by size for proper treemap rendering
-    std::lock_guard guard(m_FolderInfo->m_Protect);
+    std::scoped_lock guard(m_FolderInfo->m_Protect);
     m_FolderInfo->m_Children.shrink_to_fit();
     std::ranges::sort(m_FolderInfo->m_Children, [](auto item1, auto item2)
     {
@@ -1174,8 +1153,8 @@ CItem* CItem::FindRecyclerItem() const
     {
         if (!p->IsType(IT_DRIVE)) continue;
 
-        // There are no cross-platform way to consistently identify the recycle bin so attempt
-        // to find an item with the most probable to least probable values
+        // There are no cross-platform way to consistently identify the recycle bin 
+        // so attempt to find an item with the most probable values
         for (const std::wstring& possible : { L"$RECYCLE.BIN", L"RECYCLER", L"RECYCLED" })
         {
             for (const auto& child : p->GetChildren())
@@ -1220,22 +1199,32 @@ CItem* CItem::FindFreeSpaceItem() const
 
 void CItem::UpdateFreeSpaceItem()
 {
-    ASSERT(IsType(IT_DRIVE));
-
-    auto [total, free] = CDirStatApp::GetFreeDiskSpace(GetPath());
-
-    // Recreate name based on updated free space and percentage
-    SetName(std::format(L"{:.2}|{} - {} ({:.1f}%)", GetName(),
-        FormatVolumeNameOfRootPath(GetPath()), Localization::Format(
-        IDS_DRIVE_ITEM_FREEsTOTALs, FormatBytes(free), FormatBytes(total)),
-        100.0 * free / total));
-
-    // Update freespace item if it exists
-    if (CItem* freeSpaceItem = FindFreeSpaceItem(); freeSpaceItem != nullptr)
+    if (IsType(IT_MYCOMPUTER))
     {
-        freeSpaceItem->UpwardSubtractSizePhysical(freeSpaceItem->GetSizePhysical());
-        freeSpaceItem->UpwardAddSizePhysical(free);
+        for (const auto& child : GetChildren())
+        {
+            if (child->IsType(IT_DRIVE))
+                child->UpdateFreeSpaceItem();
+        }
     }
+    else if (IsType(IT_DRIVE))
+    {
+        auto [total, free] = CDirStatApp::GetFreeDiskSpace(GetPath());
+
+        // Recreate name based on updated free space and percentage
+            SetName(std::format(L"{:.2}|{} - {} ({:.1f}%)", GetName(),
+                FormatVolumeNameOfRootPath(GetPath()), Localization::Format(
+                    IDS_DRIVE_ITEM_FREEsTOTALs, FormatBytes(free), FormatBytes(total)),
+                100.0 * free / total));
+
+        // Update freespace item if it exists
+        if (CItem* freeSpaceItem = FindFreeSpaceItem(); freeSpaceItem != nullptr)
+        {
+            freeSpaceItem->UpwardSubtractSizePhysical(freeSpaceItem->GetSizePhysical());
+            freeSpaceItem->UpwardAddSizePhysical(free);
+        }
+    }
+    else ASSERT(FALSE);
 }
 
 void CItem::UpdateUnknownItem() const
@@ -1378,25 +1367,20 @@ COLORREF CItem::GetPercentageColor() const
 std::wstring CItem::UpwardGetPathWithoutBackslash() const
 {
     // create vector of the path structure in thread scope so we can reverse it
-    thread_local static std::vector<const CItem*> pathParts;
-
-    // preallocate some space to avoid multiple re-allocations
-    pathParts.reserve(DEFAULT_PATH_RESERVE);
+    thread_local std::vector<const CItem*> pathParts;
+    thread_local std::wstring path;
 
     // make sure the vector is cleared before use
     pathParts.clear();
+    path.clear();
 
     // walk backwards to get a list of pointers to each part of the path
-    std::size_t estSize = 0;
     for (auto p = this; p != nullptr; p = p->GetParent())
     {
         pathParts.emplace_back(p);
-        estSize += p->m_NameLen + 1;
     }
 
     // append the strings in reverse order
-    std::wstring path;
-    path.reserve(estSize);
     for (auto it = pathParts.rbegin(); it != pathParts.rend(); ++it)
     {
         if (const auto & pathPart = *it; pathPart->IsType(IT_DIRECTORY))
@@ -1477,7 +1461,7 @@ std::vector<BYTE> CItem::GetFileHash(ULONGLONG hashSizeLimit, BlockingQueue<CIte
     thread_local SmartPointer<BCRYPT_HASH_HANDLE> HashHandle(BCryptDestroyHash);
 
     // Initialize shared structures
-    if (m_HashLength == 0) if (std::lock_guard guard(m_HashMutex); m_HashLength == 0)
+    if (m_HashLength == 0) if (std::scoped_lock guard(m_HashMutex); m_HashLength == 0)
     {
         DWORD ResultLength = 0;
         if (BCryptOpenAlgorithmProvider(&m_HashAlgHandle, BCRYPT_SHA512_ALGORITHM, MS_PRIMITIVE_PROVIDER, BCRYPT_HASH_REUSABLE_FLAG) != 0 ||

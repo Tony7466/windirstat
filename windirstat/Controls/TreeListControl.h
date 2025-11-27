@@ -64,7 +64,7 @@ public:
     virtual int GetTreeListChildCount() const = 0;
     virtual CTreeListItem* GetLinkedItem() { return this; }
 
-    void DrawPacman(const CDC* pdc, const CRect& rc) const;
+    void DrawPacman(CDC* pdc, const CRect& rc) const;
     CTreeListItem* GetParent() const;
     void SetParent(CTreeListItem* parent);
     bool IsAncestorOf(const CTreeListItem* item) const;
@@ -94,7 +94,7 @@ private:
 };
 
 //
-// CTreeListControl. A CListCtrl, which additionally behaves an looks like a tree control.
+// CTreeListControl. A CListCtrl, which additionally behaves and looks like a tree control.
 //
 class CTreeListControl : public COwnerDrawnListControl
 {

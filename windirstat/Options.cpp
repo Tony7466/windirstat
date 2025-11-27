@@ -75,6 +75,7 @@ Setting<bool> COptions::ShowTreeMap(OptionsTreeMap, L"ShowTreeMap", true);
 Setting<bool> COptions::ShowUnknown(OptionsGeneral, L"ShowUnknown", false);
 Setting<bool> COptions::SkipDupeDetectionCloudLinks(OptionsGeneral, L"SkipDupeDetectionCloudLinks", true);
 Setting<bool> COptions::SkipDupeDetectionCloudLinksWarning(OptionsGeneral, L"SkipDupeDetectionCloudLinksWarning", true);
+Setting<bool> COptions::AutoElevate(OptionsGeneral, L"AutoElevate", false);
 Setting<bool> COptions::TreeMapGrid(OptionsTreeMap, L"TreeMapGrid", (CTreeMap::GetDefaults().grid));
 Setting<bool> COptions::TreeMapUseLogical(OptionsTreeMap, L"TreeMapUseLogicalSize", false);
 Setting<bool> COptions::UseBackupRestore(OptionsGeneral, L"UseBackupRestore", true);
@@ -200,13 +201,13 @@ void COptions::CompileFilters()
         std::pair{FilteringExcludeDirs.Obj(), std::ref(FilteringExcludeDirsRegex)},
         std::pair{FilteringExcludeFiles.Obj(), std::ref(FilteringExcludeFilesRegex)}})
     {
-        for (const auto& token_view : std::views::split(optionString, L'\n'))
+        for (const auto token_view : std::views::split(optionString, L'\n'))
         {
             std::wstring token(token_view.begin(), token_view.end());
 
             try
             {
-                while (!token.empty() && token.back() == L'\r') token.pop_back();
+                while (!token.empty() && token.back() == L'\r' || token.back() == L'\\') token.pop_back();
                 optionRegex.get().emplace_back(FilteringUseRegex ? token : GlobToRegex(token),
                     std::regex_constants::icase | std::regex_constants::optimize);
             }

@@ -182,7 +182,7 @@ BOOL CMessageBoxDlg::OnInitDialog()
     ScreenToClient(&rectMessage);
     CDC* pDC = m_MessageCtrl.GetDC();
     CRect rectText(0, 0, rectMessage.Width(), 0);
-    pDC->DrawText(m_Message.c_str(), &rectText, DT_CALCRECT | DT_WORDBREAK);
+    pDC->DrawText(m_Message.c_str(), &rectText, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
     m_MessageCtrl.ReleaseDC(pDC);
 
     // Shift down if message height exceeds icon height
@@ -258,7 +258,7 @@ int WdsMessageBox(const std::wstring& message, const UINT type)
         return AfxMessageBox(message.c_str(), type);
     }
 
-    return WdsMessageBox(nullptr, message, Localization::Lookup(IDS_APP_TITLE), type);
+    return WdsMessageBox(nullptr, message, Localization::LookupNeutral(AFX_IDS_APP_TITLE), type);
 }
 
 int WdsMessageBox(const HWND wnd, const std::wstring& message, const std::wstring& title, const UINT type)

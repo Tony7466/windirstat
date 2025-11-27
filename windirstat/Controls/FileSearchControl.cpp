@@ -21,6 +21,7 @@
 #include "MainFrame.h"
 #include "FileSearchControl.h"
 #include "Localization.h"
+#include "ProgressDlg.h"
 
 #include <ranges>
 
@@ -33,7 +34,7 @@ bool CFileSearchControl::GetAscendingDefault(const int column)
 {
     return column == COL_ITEMSEARCH_SIZE_PHYSICAL ||
         column == COL_ITEMSEARCH_SIZE_LOGICAL ||
-        column == COL_ITEMSEARCH_LASTCHANGE;
+        column == COL_ITEMSEARCH_LAST_CHANGE;
 }
 
 BEGIN_MESSAGE_MAP(CFileSearchControl, CTreeListControl)
@@ -82,34 +83,43 @@ void CFileSearchControl::ProcessSearch(CItem* item)
         [](const std::wstring& str, const std::wregex& regex) { return std::regex_match(str, regex); } :
         [](const std::wstring& str, const std::wregex& regex) { return std::regex_search(str, regex); };
 
-    // Do search
-    CWaitCursor waitCursor;
-    SetRedraw(FALSE);
-    std::stack<CItem*> queue({ item });
-    while (!queue.empty())
+    // Process search request using progress dialog
+    CProgressDlg(static_cast<size_t>(item->GetItemsCount()), false, AfxGetMainWnd(),
+        [&](const std::atomic<bool>& cancel, std::atomic<size_t>& current)
     {
-        // Grab item from queue
-        CItem* qitem = queue.top();
-        queue.pop();
-
-        if (searchFunc(qitem->GetName(), searchRegex))
+        // Do search
+        std::stack<CItem*> queue({ item });
+        while (!queue.empty() && !cancel)
         {
-            CItemSearch* searchItem = new CItemSearch(qitem);
-            CDirStatDoc::GetDocument()->GetRootItemSearch()->AddSearchItemChild(searchItem);
-            m_ItemTracker.emplace(qitem, searchItem);
-        }
+            // Grab item from queue
+            ++current;
+            CItem* qitem = queue.top();
+            queue.pop();
 
-        // Descend into childitems
-        if (qitem->IsLeaf()) continue;
-        for (const auto& child : qitem->GetChildren())
-        {
-            queue.push(child);
+            if (searchFunc(qitem->GetName(), searchRegex))
+            {
+                CItemSearch* searchItem = new CItemSearch(qitem);
+                CMainFrame::Get()->InvokeInMessageThread([this, searchItem]
+                {
+                    CDirStatDoc::GetDocument()->GetRootItemSearch()->AddSearchItemChild(searchItem);
+                });
+                m_ItemTracker.emplace(qitem, searchItem);
+            }
+
+            // Descend into child items
+            if (qitem->IsLeaf()) continue;
+            for (const auto& child : qitem->GetChildren())
+            {
+                queue.push(child);
+            }
         }
-    }
+    }).DoModal();
 
     // Reenable drawing
-    SetRedraw(TRUE);
     SortItems();
+
+    // Update tab visibility to show search tab if results exist
+    CMainFrame::Get()->GetFileTabbedView()->SetSearchTabVisibility(true);
 }
 
 void CFileSearchControl::RemoveItem(CItem* item)
@@ -137,7 +147,7 @@ void CFileSearchControl::OnItemDoubleClick(const int i)
 
 BOOL CFileSearchControl::OnDeleteAllItems(NMHDR*, LRESULT* pResult)
 {
-    // Allow delete to proceed
+    // Allow deletion to proceed
     *pResult = FALSE;
     return FALSE;
 }

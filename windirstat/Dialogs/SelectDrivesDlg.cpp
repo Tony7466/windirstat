@@ -38,7 +38,7 @@ namespace
         COL_DRIVES_TOTAL,
         COL_DRIVES_FREE,
         COL_DRIVES_GRAPH,
-        COL_DRIVES_PERCENTUSED
+        COL_DRIVES_PERCENT_USED
     };
 
     constexpr UINT WMU_OK = WM_USER + 100;
@@ -102,7 +102,7 @@ void CDriveItem::SetDriveInformation(const bool success, const std::wstring & na
         m_FreeBytes  = free;
         m_Used       = 0.0;
 
-        // guard against cases where free bytes might be limited (.e.g, quotas)
+        // guard against cases where free bytes might be limited (e.g., quotas)
         if (m_TotalBytes > 0 && m_TotalBytes >= m_FreeBytes)
         {
             m_Used = static_cast<double>(m_TotalBytes - m_FreeBytes) / m_TotalBytes;
@@ -130,7 +130,7 @@ int CDriveItem::Compare(const CSortingListItem* baseOther, const int subitem) co
         case COL_DRIVES_TOTAL: return usignum(m_TotalBytes, other->m_TotalBytes);
         case COL_DRIVES_FREE: return usignum(m_FreeBytes, other->m_FreeBytes);
         case COL_DRIVES_GRAPH:
-        case COL_DRIVES_PERCENTUSED: return signum(m_Used - other->m_Used);
+        case COL_DRIVES_PERCENT_USED: return signum(m_Used - other->m_Used);
         default: ASSERT(FALSE);
     }
 
@@ -212,7 +212,7 @@ std::wstring CDriveItem::GetText(const int subitem) const
         }
         break;
 
-    case COL_DRIVES_PERCENTUSED:
+    case COL_DRIVES_PERCENT_USED:
         if (m_Success && !IsSUBSTed())
         {
             s = FormatDouble(m_Used * 100) + L"%";
@@ -243,13 +243,13 @@ std::mutex CDriveInformationThread::_mutexRunningThreads;
 
 void CDriveInformationThread::AddRunningThread()
 {
-    std::lock_guard lock(_mutexRunningThreads);
+    std::scoped_lock lock(_mutexRunningThreads);
     _runningThreads.insert(this);
 }
 
 void CDriveInformationThread::RemoveRunningThread()
 {
-    std::lock_guard lock(_mutexRunningThreads);
+    std::scoped_lock lock(_mutexRunningThreads);
     _runningThreads.erase(this);
 }
 
@@ -259,7 +259,7 @@ void CDriveInformationThread::RemoveRunningThread()
 //
 void CDriveInformationThread::InvalidateDialogHandle()
 {
-    std::lock_guard lock(_mutexRunningThreads);
+    std::scoped_lock lock(_mutexRunningThreads);
     for (const auto & thread : _runningThreads)
     {
         thread->m_Dialog = nullptr;
@@ -408,6 +408,7 @@ BEGIN_MESSAGE_MAP(CSelectDrivesDlg, CLayoutDialogEx)
     ON_WM_CTLCOLOR()
     ON_BN_CLICKED(IDC_BROWSE_BUTTON, &CSelectDrivesDlg::OnBnClickedBrowseButton)
     ON_CBN_EDITCHANGE(IDC_BROWSE_FOLDER, &CSelectDrivesDlg::OnEditchangeBrowseFolder)
+    ON_CBN_SELCHANGE(IDC_BROWSE_FOLDER, &CSelectDrivesDlg::OnCbnSelchangeBrowseFolder)
 END_MESSAGE_MAP()
 
 BOOL CSelectDrivesDlg::OnInitDialog()
@@ -445,7 +446,7 @@ BOOL CSelectDrivesDlg::OnInitDialog()
     m_List.InsertColumn(CHAR_MAX, Localization::Lookup(IDS_COL_TOTAL).c_str(), LVCFMT_RIGHT, 65, COL_DRIVES_TOTAL);
     m_List.InsertColumn(CHAR_MAX, Localization::Lookup(IDS_COL_FREE).c_str(), LVCFMT_RIGHT, 65, COL_DRIVES_FREE);
     m_List.InsertColumn(CHAR_MAX, Localization::Lookup(IDS_COL_GRAPH).c_str(), LVCFMT_LEFT, 100, COL_DRIVES_GRAPH);
-    m_List.InsertColumn(CHAR_MAX, Localization::Lookup(IDS_COL_PERCENTUSED).c_str(),LVCFMT_RIGHT, 65, COL_DRIVES_PERCENTUSED);
+    m_List.InsertColumn(CHAR_MAX, Localization::Lookup(IDS_COL_PERCENT_USED).c_str(),LVCFMT_RIGHT, 65, COL_DRIVES_PERCENT_USED);
 
     m_List.OnColumnsInserted();
 
@@ -461,7 +462,12 @@ BOOL CSelectDrivesDlg::OnInitDialog()
 
     // Select the first folder value from the list
     if (m_BrowseList.GetCount() > 0)
+    {
+        m_BrowseList.SetCurSel(0);
         m_FolderName = COptions::SelectDrivesFolder.Obj().front().c_str();
+    }
+
+    UpdateData(FALSE);
 
     CBitmap bitmap;
     bitmap.LoadBitmapW(IDB_FILE_SELECT);
@@ -591,19 +597,20 @@ void CSelectDrivesDlg::UpdateButtons()
     bool enableOk = false;
 
     // Prompt user to elevate if the Fast Scan option is checked in non-elevated session
-    if (m_UseFastScan && !IsElevationActive())
+    if (m_UseFastScan && IsElevationAvailable())
     {
-        m_UseFastScan = false;
         if (WdsMessageBox(*this, Localization::Lookup(IDS_ELEVATION_QUESTION),
-            Localization::Lookup(IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION) == IDYES)
+            Localization::LookupNeutral(AFX_IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION) == IDYES)
         {
             COptions::UseFastScanEngine = true;
             RunElevated(CDirStatDoc::GetDocument()->GetPathName().GetString());
+            return;
         }
         else
         {
             // If the user declines, uncheck the fast scan box to revert the state.
-            CheckDlgButton(IDC_FAST_SCAN_CHECKBOX, BST_UNCHECKED);
+            m_UseFastScan = false;
+            UpdateData(FALSE);
         }
     }
 
@@ -769,9 +776,20 @@ HBRUSH CSelectDrivesDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, const UINT nCtlColor)
 void CSelectDrivesDlg::OnBnClickedBrowseButton()
 {
     // Prompt user and then update folder in combo box
-    const auto folder = PromptForFolder();
-    if (folder.empty()) return;
-    m_FolderName = folder.c_str();
+    UpdateData();
+
+    // Setup folder picker dialog
+    CFolderPickerDialog dlg(nullptr,
+        OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_DONTADDTORECENT, this);
+    const auto title = Localization::LookupNeutral(AFX_IDS_APP_TITLE);
+    dlg.m_ofn.lpstrTitle = title.c_str();
+
+    // Show dialog and validate results
+    if (dlg.DoModal() != IDOK) return;
+    const std::wstring path = dlg.GetFolderPath().GetString();
+
+    if (!FinderBasic::DoesFileExist(path)) return;
+    m_FolderName = path.c_str();
     UpdateData(FALSE);
 
     SetActiveRadio(IDC_RADIO_TARGET_FOLDER);
@@ -780,6 +798,7 @@ void CSelectDrivesDlg::OnBnClickedBrowseButton()
 
 void CSelectDrivesDlg::OnEditchangeBrowseFolder()
 {
+    // Force assessing folder to make the okay button light up
     SetActiveRadio(IDC_RADIO_TARGET_FOLDER);
     UpdateButtons();
 }
@@ -787,4 +806,12 @@ void CSelectDrivesDlg::OnEditchangeBrowseFolder()
 void CSelectDrivesDlg::SetActiveRadio(const int radio)
 {
     CheckRadioButton(IDC_RADIO_TARGET_DRIVES_ALL, IDC_RADIO_TARGET_FOLDER, radio);
+}
+
+void CSelectDrivesDlg::OnCbnSelchangeBrowseFolder()
+{
+    // Get the current selection text and assess if valid for okay button
+    m_BrowseList.GetWindowText(m_FolderName);
+    UpdateData(FALSE);
+    UpdateButtons();
 }

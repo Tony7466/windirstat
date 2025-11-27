@@ -96,7 +96,7 @@ struct USERDEFINEDCLEANUP
 };
 
 //
-// COptions. Reads from and writes all the persistent settings
+// COptions. Reads and writes all persistent settings
 // like window position, column order etc.
 //
 class COptions final
@@ -152,6 +152,7 @@ public:
     static Setting<bool> ShowUnknown;
     static Setting<bool> SkipDupeDetectionCloudLinks;
     static Setting<bool> SkipDupeDetectionCloudLinksWarning;
+    static Setting<bool> AutoElevate;
     static Setting<bool> TreeMapGrid;
     static Setting<bool> TreeMapUseLogical;
     static Setting<bool> UseBackupRestore;

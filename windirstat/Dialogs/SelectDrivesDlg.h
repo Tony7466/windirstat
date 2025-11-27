@@ -62,7 +62,7 @@ public:
 private:
     CDrivesList* m_List; // Backpointer
     std::wstring m_Path; // e.g. "C:\"
-    HICON m_Icon = nullptr; // Cached icon icon
+    HICON m_Icon = nullptr; // Cached icon
     bool m_IsRemote; // Whether the drive type is DRIVE_REMOTE (network drive)
 
     bool m_Querying = true; // Information thread is running.
@@ -78,7 +78,7 @@ private:
 
 //
 // CDriveInformationThread. Does the GetVolumeInformation() call, which
-// may hang for ca. 30 sec, it a network drive is not accessible.
+// may hang for ca. 30 sec, if a network drive is not accessible.
 //
 class CDriveInformationThread final : public CWinThread
 {
@@ -183,4 +183,5 @@ protected:
     BOOL PreTranslateMessage(MSG* pMsg) override;
 public:
     afx_msg void OnEditchangeBrowseFolder();
+    afx_msg void OnCbnSelchangeBrowseFolder();
 };

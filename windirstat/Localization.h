@@ -18,7 +18,7 @@
 #pragma once
 
 #include "stdafx.h"
-#include "res\LangStrings.h"
+#include "LangStrings.h"
 #include "Options.h"
 
 #include <string>
@@ -42,9 +42,9 @@ public:
         return m_Map.contains(std::wstring(name));
     }
 
-    static std::wstring Lookup(const std::wstring_view& name, const std::wstring & def = std::wstring())
+    static std::wstring Lookup(const std::wstring_view& name)
     {
-        return Contains(name) ? m_Map[std::wstring(name)] : def;
+        return Contains(name) ? m_Map[std::wstring(name)] : std::wstring();
     }
 
     static std::wstring LookupNeutral(const UINT res)

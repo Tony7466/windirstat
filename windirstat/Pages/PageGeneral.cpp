@@ -41,8 +41,8 @@ COptionsPropertySheet* CPageGeneral::GetSheet() const
 void CPageGeneral::DoDataExchange(CDataExchange* pDX)
 {
     CMFCPropertyPage::DoDataExchange(pDX);
+    DDX_Check(pDX, IDC_AUTO_ELEVATE, m_AutomaticallyElevateOnStartup);
     DDX_Check(pDX, IDC_COLUMN_AUTOSIZE, m_AutomaticallyResizeColumns);
-    DDX_Check(pDX, IDC_DELETION_WARNING, m_ShowDeletionWarning);
     DDX_Check(pDX, IDC_FULL_ROW_SELECTION, m_ListFullRowSelection);
     DDX_Check(pDX, IDC_PORTABLE_MODE, m_PortableMode);
     DDX_Check(pDX, IDC_SHOW_GRID, m_ListGrid);
@@ -54,8 +54,8 @@ void CPageGeneral::DoDataExchange(CDataExchange* pDX)
 }
 
 BEGIN_MESSAGE_MAP(CPageGeneral, CMFCPropertyPage)
+    ON_BN_CLICKED(IDC_AUTO_ELEVATE, OnBnClickedSetModified)
     ON_BN_CLICKED(IDC_COLUMN_AUTOSIZE, OnBnClickedSetModified)
-    ON_BN_CLICKED(IDC_DELETION_WARNING, OnBnClickedSetModified)
     ON_BN_CLICKED(IDC_FULL_ROW_SELECTION, OnBnClickedSetModified)
     ON_BN_CLICKED(IDC_PORTABLE_MODE, OnBnClickedSetModified)
     ON_BN_CLICKED(IDC_SHOW_GRID, OnBnClickedSetModified)
@@ -82,11 +82,11 @@ BOOL CPageGeneral::OnInitDialog()
     Localization::UpdateDialogs(*this);
     DarkMode::AdjustControls(GetSafeHwnd());
 
+    m_AutomaticallyElevateOnStartup = COptions::AutoElevate;
     m_AutomaticallyResizeColumns = COptions::AutomaticallyResizeColumns;
     m_SizeSuffixesFormat = COptions::UseSizeSuffixes;
     m_ListGrid = COptions::ListGrid;
     m_ListStripes = COptions::ListStripes;
-    m_ShowDeletionWarning = COptions::ShowDeleteWarning;
     m_ListFullRowSelection = COptions::ListFullRowSelection;
     m_UseWindowsLocale = COptions::UseWindowsLocaleSetting;
     m_PortableMode = CDirStatApp::InPortableMode();
@@ -116,12 +116,12 @@ void CPageGeneral::OnOK()
         static_cast<bool>(m_ListFullRowSelection) != COptions::ListFullRowSelection ||
         static_cast<bool>(m_SizeSuffixesFormat) != COptions::UseSizeSuffixes;
 
+    COptions::AutoElevate = (FALSE != m_AutomaticallyElevateOnStartup);
     COptions::AutomaticallyResizeColumns = (FALSE != m_AutomaticallyResizeColumns);
     COptions::UseSizeSuffixes = (FALSE != m_SizeSuffixesFormat);
     COptions::UseWindowsLocaleSetting = (FALSE != m_UseWindowsLocale);
     COptions::ListGrid = (FALSE != m_ListGrid);
     COptions::ListStripes = (FALSE != m_ListStripes);
-    COptions::ShowDeleteWarning = (FALSE != m_ShowDeletionWarning);
     COptions::ListFullRowSelection = (FALSE != m_ListFullRowSelection);
     COptions::DarkMode = m_DarkModeRadio;
 

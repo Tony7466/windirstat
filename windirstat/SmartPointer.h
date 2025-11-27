@@ -14,35 +14,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
-// This general purpose header is published under GPL with
-// the friendly permission of D'accord (www.daccord.net).
-//
 
 #pragma once
 
 #include <functional>
+#include <memory>
 
 //
-// SmartPointer<>. Custom template for WinApi cleanup.
-// This template does that in its destructor.
+// SmartPointer<>. Custom template for WinAPI resource cleanup.
+// Automatically invokes the provided cleanup callable in its destructor.
 //
 template <typename T>
 class SmartPointer final
 {
 public:
 
-    SmartPointer(const SmartPointer&) = delete; // operator not allowed for SmartPointer
-    T operator=(const SmartPointer& lp) = delete; // operator not allowed for SmartPointer
+    SmartPointer(const SmartPointer&) = delete; // non-copyable
+    T operator=(const SmartPointer& lp) = delete; // copy assignment forbidden
 
     SmartPointer(std::function<void(T)> cleanup) : m_Cleanup(std::move(cleanup)), m_Data(nullptr) {}
     SmartPointer(std::function<void(T)> cleanup, T data) : m_Cleanup(std::move(cleanup)), m_Data(data) {}
 
     ~SmartPointer()
     {
-        if (m_Data != nullptr)
-        {
-            m_Cleanup(m_Data);
-        }
+        Cleanup();
     }
 
     SmartPointer(SmartPointer&& src) noexcept
@@ -50,6 +45,27 @@ public:
         m_Cleanup = src.m_Cleanup;
         m_Data = src.m_Data;
         src.m_Data = nullptr;
+    }
+
+    void Cleanup()
+    {
+        if (m_Data != nullptr)
+        {
+            m_Cleanup(m_Data);
+        }
+    }
+
+    SmartPointer& operator=(SmartPointer&& src) noexcept
+    {
+        if (std::addressof(*this) != std::addressof(src))
+        {
+            Cleanup();
+            m_Cleanup = src.m_Cleanup;
+            m_Data = src.m_Data;
+            src.m_Data = nullptr;
+        }
+
+        return *this;
     }
 
     void Release() noexcept
@@ -79,10 +95,7 @@ public:
 
     T operator=(T lp)
     {
-        if (m_Data != nullptr)
-        {
-            m_Cleanup(m_Data);
-        }
+        Cleanup();
         m_Data = lp;
         return m_Data;
     }

@@ -13,6 +13,8 @@
 #define IDD_PAGE_TREEMAP                109
 #define IDD_PAGE_GENERAL                110
 #define IDD_SEARCH                      111
+#define IDD_PROGRESS                    112
+#define IDD_PAGE_PROMPTS                113
 #define IDR_MAINFRAME                   128
 #define IDR_POPUP_TREE                  129
 #define IDR_POPUP_MAP                   130
@@ -57,7 +59,7 @@
 #define IDC_TREECOL_OWNER               1013
 #define IDC_WAITFORCOMPLETION           1014
 #define IDC_TREECOL_FOLDERS             1015
-#define IDC_TREECOL_LASTCHANGE          1016
+#define IDC_TREECOL_LAST_CHANGE         1016
 #define IDC_TREECOL_ITEMS               1017
 #define IDC_SHOW_GRID                   1018
 #define IDC_TREECOL_FILES               1019
@@ -133,7 +135,6 @@
 #define IDC_LARGEST_FILE_COUNT          1090
 #define IDC_FOLDER_HISTORY_COUNT        1091
 #define IDC_SEARCH_REGEX                1091
-#define IDC_LARGEST_FILE_COUNT2         1091
 #define IDC_SEARCH_CASE                 1092
 #define IDC_SEARCH_TERM                 1093
 #define IDC_SEARCH_WHOLE_PHRASE         1094
@@ -149,6 +150,12 @@
 #define IDC_MESSAGE_CHECKBOX            1104
 #define IDC_MESSAGE_LISTVIEW            1105
 #define IDC_BROWSE_BUTTON               1109
+#define IDC_PROGRESS_MESSAGE            1110
+#define IDC_PROGRESS_BAR                1111
+#define IDC_ELEVATION_PROMPT            1112
+#define IDC_FAST_SCAN_PROMPT            1113
+#define IDC_CLOUD_LINKS_WARNING         1114
+#define IDC_AUTO_ELEVATE                1115
 #define ID_WDS_CONTROL                  4711
 #define ID_CLEANUP_EXPLORER_SELECT      32768
 #define ID_TREEMAP_ZOOMIN               32769
@@ -213,6 +220,11 @@
 #define ID_VIEW_LARGEST_FILES           32828
 #define ID_VIEW_DUPLICATE_FILES         32829
 #define ID_VIEW_SEARCH_RESULTS          32830
+#define ID_COMPUTE_HASH                 32832
+#define ID_CLEANUP_REMOVE_LOCAL         32833
+#define ID_CLEANUP_REMOVE_SHADOW        32834
+#define ID_CLEANUP_DISM_ANALYZE         32835
+#define ID_SAVE_DUPLICATES              32836
 #define IDS_AUTHOR_EMAIL                57345
 #define IDS_URL_WEBSITE                 57346
 #define IDS_URL_HELP                    57347
@@ -227,8 +239,8 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        305
-#define _APS_NEXT_COMMAND_VALUE         32831
-#define _APS_NEXT_CONTROL_VALUE         1111
+#define _APS_NEXT_COMMAND_VALUE         32837
+#define _APS_NEXT_CONTROL_VALUE         1116
 #define _APS_NEXT_SYMED_VALUE           109
 #endif
 #endif

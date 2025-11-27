@@ -160,7 +160,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;$(ProjectDir)Res\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;WINVER=_WIN32_WINNT_WIN7;_WIN32_WINNT=_WIN32_WINNT_WIN7;_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -206,7 +206,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;$(ProjectDir)Res\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;WINVER=_WIN32_WINNT_WIN7;_WIN32_WINNT=_WIN32_WINNT_WIN7;_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -252,7 +252,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;$(ProjectDir)Res\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;WINVER=_WIN32_WINNT_WIN7;_WIN32_WINNT=_WIN32_WINNT_WIN7;_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -298,7 +298,7 @@
     <ClCompile>
       <AdditionalOptions>/utf-8 $(ExternalCompilerOptions)</AdditionalOptions>
       <Optimization>Full</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;$(ProjectDir)Res\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;WINVER=_WIN32_WINNT_WIN7;_WIN32_WINNT=_WIN32_WINNT_WIN7;_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
@@ -408,7 +408,7 @@
     <ClCompile>
       <AdditionalOptions>/utf-8 $(ExternalCompilerOptions)</AdditionalOptions>
       <Optimization>Full</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;$(ProjectDir)Res\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;WINVER=_WIN32_WINNT_WIN7;_WIN32_WINNT=_WIN32_WINNT_WIN7;_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
@@ -465,7 +465,7 @@
     <ClCompile>
       <AdditionalOptions>/utf-8 $(ExternalCompilerOptions)</AdditionalOptions>
       <Optimization>Full</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(ProjectDir);$(ProjectDir)Controls\;$(ProjectDir)Dialogs\;$(ProjectDir)Pages\;$(ProjectDir)Views\;$(ProjectDir)Res\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;WINVER=_WIN32_WINNT_WIN7;_WIN32_WINNT=_WIN32_WINNT_WIN7;_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
@@ -536,6 +536,8 @@
     <ClInclude Include="Controls\FileSearchControl.h" />
     <ClInclude Include="DarkMode.h" />
     <ClInclude Include="Dialogs\MessageBoxDlg.h" />
+    <ClInclude Include="Dialogs\ProgressDlg.h" />
+    <ClInclude Include="Pages\PagePrompts.h" />
     <ClInclude Include="Views\FileSearchView.h" />
     <ClInclude Include="Finder.h" />
     <ClInclude Include="FinderNtfs.h" />
@@ -559,7 +561,6 @@
     <ClInclude Include="Layout.h" />
     <ClInclude Include="Localization.h" />
     <ClInclude Include="MainFrame.h" />
-    <ClInclude Include="ModalApiShuttle.h" />
     <ClInclude Include="Options.h" />
     <ClInclude Include="Pages\PageAdvanced.h" />
     <ClInclude Include="Pages\PageCleanups.h" />
@@ -595,8 +596,10 @@
     <ClCompile Include="CsvLoader.cpp" />
     <ClCompile Include="DarkMode.cpp" />
     <ClCompile Include="Dialogs\MessageBoxDlg.cpp" />
+    <ClCompile Include="Dialogs\ProgressDlg.cpp" />
     <ClCompile Include="DirStatDoc.cpp">
     </ClCompile>
+    <ClCompile Include="Pages\PagePrompts.cpp" />
     <ClCompile Include="Views\FileSearchView.cpp" />
     <ClCompile Include="Controls\FileSearchControl.cpp" />
     <ClCompile Include="FinderBasic.cpp" />
@@ -612,8 +615,6 @@
     </ClCompile>
     <ClCompile Include="Localization.cpp" />
     <ClCompile Include="MainFrame.cpp">
-    </ClCompile>
-    <ClCompile Include="ModalApiShuttle.cpp">
     </ClCompile>
     <ClCompile Include="Options.cpp">
     </ClCompile>

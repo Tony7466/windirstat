@@ -49,7 +49,7 @@ enum LOGICAL_FOCUS : std::uint8_t
 };
 
 //
-// COptionsPropertySheet. The options dialog.
+// COptionsPropertySheet.
 //
 class COptionsPropertySheet final : public CMFCPropertySheet
 {
@@ -96,7 +96,7 @@ protected:
 //
 // CPacmanControl. Pacman on the status bar.
 //
-class CPacmanControl final : public CStatic
+class CPacmanControl final : public CWnd
 {
 public:
     CPacmanControl() = default;
@@ -105,22 +105,23 @@ public:
     void Stop();
 
 protected:
-    CPacman m_Pacman;
+    CPacman m_Pacman{ DarkMode::WdsSysColor(
+        DarkMode::IsDarkModeActive() ? COLOR_WINDOW : COLOR_BTNFACE) };
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnPaint();
     afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
+    afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 };
 
 //
-// CDeadFocusWnd. The focus in Windirstat can be on
+// CDeadFocusWnd. The focus in WinDirStat can be on
 // - the directory list
 // - the extension list,
-// - or none of them. In this case the focus lies on
+// - or none of them. In that case the focus resides on
 //   an invisible (zero-size) child of CMainFrame.
-// On VK_TAB CDeadFocusWnd moves the focus to the
-// directory list then.
-//
+// Pressing VK_TAB while this window has focus moves focus to the
+// directory list.
 class CDeadFocusWnd final : public CWnd
 {
 public:
@@ -243,7 +244,6 @@ protected:
     afx_msg LRESULT OnTaskButtonCreated(WPARAM, LPARAM);
     afx_msg void OnSysColorChange();
     afx_msg LRESULT OnUahDrawMenu(WPARAM wParam, LPARAM lParam);
-    afx_msg LRESULT OnUahDrawMenuItem(WPARAM wParam, LPARAM lParam);
     afx_msg void OnNcPaint();
     afx_msg BOOL OnNcActivate(BOOL bActive);
 public:

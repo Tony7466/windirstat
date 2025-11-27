@@ -86,7 +86,7 @@ void CDirStatApp::RestartApplication(bool resetPreferences)
     if (const BOOL success = CreateProcess(GetAppFileName().c_str(), nullptr, nullptr, nullptr, false,
         resetPreferences ? 0 : CREATE_SUSPENDED, nullptr, nullptr, &si, &pi); !success)
     {
-        DisplayError(Localization::Format(IDS_CREATEPROCESSsFAILEDs, GetAppFileName(), TranslateError()));
+        DisplayError(Localization::Format(IDS_PROCESS_FAILEDss, GetAppFileName(), TranslateError()));
         return;
     }
 
@@ -96,8 +96,8 @@ void CDirStatApp::RestartApplication(bool resetPreferences)
         ExitProcess(0);
     }
 
-    // We _send_ the WM_CLOSE here to ensure that all COptions-Settings
-    // like column widths an so on are saved before the new instance is resumed.
+    // We _send_ the WM_CLOSE here to ensure that all COptions settings
+    // like column widths and so on are saved before the new instance is resumed.
     // This will post a WM_QUIT message.
     (void)CMainFrame::Get()->SendMessage(WM_CLOSE);
 
@@ -213,14 +213,14 @@ bool CDirStatApp::SetPortableMode(const bool enable, const bool onlyOpen)
         }
 
         // Fallback to registry mode for any failures
-        SetRegistryKey(Localization::Lookup(IDS_APP_TITLE).c_str());
+        SetRegistryKey(Localization::LookupNeutral(AFX_IDS_APP_TITLE).c_str());
         return false;
     }
 
     // Attempt to remove file succeeded
     if (DeleteFile(ini.c_str()) != 0 || GetLastError() == ERROR_FILE_NOT_FOUND)
     {
-        SetRegistryKey(Localization::Lookup(IDS_APP_TITLE).c_str());
+        SetRegistryKey(Localization::LookupNeutral(AFX_IDS_APP_TITLE).c_str());
         return true;
     }
 
@@ -284,6 +284,13 @@ BOOL CDirStatApp::InitInstance()
     COptions::LoadAppSettings();
     LoadStdProfileSettings(0);
 
+    // Silently restart elevated conditionally before any expensive initialization
+    if (IsElevationAvailable() && COptions::AutoElevate && !COptions::ShowElevationPrompt) // only if user doesn't want to be prompted
+    {
+        RunElevated(m_lpCmdLine);
+        return FALSE;
+    }
+
     // Set app to prefer dark mode
     DarkMode::SetAppDarkMode();
 
@@ -298,7 +305,7 @@ BOOL CDirStatApp::InitInstance()
     AfxEnableControlContainer();
     (void)AfxInitRichEdit2();
 
-    // Initialize GPI Plus
+    // Initialize GDI Plus
     Gdiplus::GdiplusStartupInput gdiplusStartupInput;
     ULONG_PTR gdiplusToken;
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
@@ -314,9 +321,6 @@ BOOL CDirStatApp::InitInstance()
     CWinDirStatCommandLineInfo cmdInfo;
     ParseCommandLine(cmdInfo);
     ProcessShellCommand(cmdInfo);
-
-    // Allow dark mode
-    DarkMode::SetupGlobalColors();
 
     CMainFrame::Get()->InitialShowWindow();
     m_pMainWnd->Invalidate();
@@ -344,7 +348,7 @@ BOOL CDirStatApp::InitInstance()
         RtlSetProcessPlaceholderCompatibilityMode(PHCM_EXPOSE_PLACEHOLDERS);
     }
 
-    // If launches with a parent pid flag, close that process
+    // If launched with a parent PID flag, close that process
     if (cmdInfo.m_ParentPid != 0)
     {
         if (SmartPointer<HANDLE> handle(CloseHandle, OpenProcess(PROCESS_TERMINATE, FALSE, cmdInfo.m_ParentPid)); handle != nullptr)
@@ -356,7 +360,7 @@ BOOL CDirStatApp::InitInstance()
     // Prompt user to enable enhanced scanning engine if it is disabled and running in elevated privileges
     if (IsElevationActive() && COptions::UseFastScanEngine == false && COptions::ShowFastScanPrompt) {
         CMessageBoxDlg fastScanPrompt( Localization::Lookup(IDS_ENABLEFASTSCAN_QUESTION),
-            Localization::Lookup(IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION, m_pMainWnd,
+            Localization::LookupNeutral(AFX_IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION, m_pMainWnd,
             {}, Localization::Lookup(IDS_DONT_SHOW_AGAIN), false);
 
         const INT_PTR result = fastScanPrompt.DoModal();
@@ -369,19 +373,26 @@ BOOL CDirStatApp::InitInstance()
     if (IsElevationAvailable() && COptions::ShowElevationPrompt)
     {
         CMessageBoxDlg elevationPrompt(Localization::Lookup(IDS_ELEVATION_QUESTION),
-            Localization::Lookup(IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION, m_pMainWnd, {},
+            Localization::LookupNeutral(AFX_IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION, m_pMainWnd, {},
             Localization::Lookup(IDS_DONT_SHOW_AGAIN), false);
 
         const INT_PTR result = elevationPrompt.DoModal();
         COptions::ShowElevationPrompt = !elevationPrompt.IsCheckboxChecked();
         if (result == IDYES)
         {
+            if (!COptions::ShowElevationPrompt) COptions::AutoElevate = true;
             RunElevated(m_lpCmdLine);
             return FALSE;
         }
-
-        COptions::UseFastScanEngine = false;
+        else
+        {
+            COptions::AutoElevate = false;
+        }
     }
+
+    // If elevation is available but not active, disable Fast Scan as it requires elevated privileges
+    if (COptions::UseFastScanEngine && IsElevationAvailable())
+        COptions::UseFastScanEngine = false;
 
     // Either open the file names or open file selection dialog
     cmdInfo.m_strFileName.IsEmpty() ? OnFileOpen() :

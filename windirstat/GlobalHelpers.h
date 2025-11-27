@@ -20,6 +20,7 @@
 #include "stdafx.h"
 
 #include <string>
+#include <atomic>
 #include <functional>
 
 constexpr auto CONTENT_MENU_MINCMD = 0x1ul;
@@ -55,8 +56,8 @@ constexpr T* ByteOffset(void* ptr, const std::ptrdiff_t offset)
 
 std::wstring GetLocaleString(LCTYPE lctype, LCID lcid);
 std::wstring GetLocaleLanguage(LANGID langid);
-std::wstring GetLocaleThousandSeparator();
-std::wstring GetLocaleDecimalSeparator();
+wchar_t GetLocaleThousandSeparator();
+wchar_t GetLocaleDecimalSeparator();
 std::wstring FormatBytes(const ULONGLONG& n);
 std::wstring FormatSizeSuffixes(ULONGLONG n);
 std::wstring FormatCount(const ULONGLONG& n);
@@ -102,7 +103,10 @@ std::wstring GetBaseNameFromPath(const std::wstring& path);
 std::wstring GetAppFileName(const std::wstring& ext = L"");
 std::wstring GetAppFolder();
 std::wstring GetNameFromSid(PSID sid);
-std::wstring PromptForFolder(HWND hwnd = nullptr, const std::wstring& initialFolder = {});
+std::wstring ComputeFileHashes(const std::wstring& filePath);
+void QueryShadowCopies(ULONGLONG& count, ULONGLONG& bytesUsed);
+void RemoveWmiInstances(const std::wstring& wmiClass, std::atomic<size_t> & progress,
+    const std::atomic<bool>& cancelRequested, const std::wstring& whereClause = L"__PATH IS NOT NULL");
 
 using CSmallRect = struct CSmallRect
 {
@@ -112,17 +116,17 @@ using CSmallRect = struct CSmallRect
     WORD bottom;
 
     // Default constructor
-    CSmallRect() : left(0), top(0), right(0), bottom(0) {}
+    constexpr CSmallRect() : left(0), top(0), right(0), bottom(0) {}
 
     // Constructor from CRect
-    explicit CSmallRect(const CRect& rect) :
+    explicit constexpr CSmallRect(const CRect& rect) :
           left(static_cast<WORD>(rect.left)), top(static_cast<WORD>(rect.top))
         , right(static_cast<WORD>(rect.right)) , bottom(static_cast<WORD>(rect.bottom)) 
     {
     }
 
     // Assignment from CRect
-    CSmallRect& operator=(const CRect& rect)
+    constexpr CSmallRect& operator=(const CRect& rect)
     {
         left = static_cast<WORD>(rect.left);
         top = static_cast<WORD>(rect.top);
