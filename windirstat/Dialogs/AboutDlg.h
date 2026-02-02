@@ -17,17 +17,8 @@
 
 #pragma once
 
+#include "pch.h"
 #include "Layout.h"
-
-void StartAboutDialog();
-
-class CAboutThread final : public CWinThread
-{
-    DECLARE_DYNCREATE(CAboutThread)
-
-protected:
-    BOOL InitInstance() override;
-};
 
 class CAboutDlg final : public CLayoutDialogEx
 {
@@ -36,16 +27,20 @@ class CAboutDlg final : public CLayoutDialogEx
     public:
         void Initialize();
         void ClearSelectionCursor();
+        bool HandleTabKey(bool shiftPressed);
 
     protected:
-        CFont m_MonoFont;
-        CRichEditCtrl m_TextAbout;
-        CRichEditCtrl m_TextThanks;
-        CRichEditCtrl m_TextLicense;
+        CFont m_monoFont;
+        CRichEditCtrl m_textAbout;
+        CRichEditCtrl m_textThanks;
+        CRichEditCtrl m_textLicense;
+
+        CRichEditCtrl& GetActiveRichEdit();
 
         DECLARE_MESSAGE_MAP()
         afx_msg void OnEnLinkText(NMHDR* pNMHDR, LRESULT* pResult);
         afx_msg void OnEnMsgFilter(NMHDR* pNMHDR, LRESULT* pResult);
+        afx_msg void OnSetFocus(CWnd* pOldWnd);
     };
 
 public:
@@ -54,10 +49,11 @@ public:
 
 protected:
     BOOL OnInitDialog() override;
+    BOOL PreTranslateMessage(MSG* pMsg) override;
     void DoDataExchange(CDataExchange* pDX) override;
 
-    CStatic m_Caption;
-    WdsTabControl m_Tab;
+    CStatic m_caption;
+    WdsTabControl m_tab;
 
     DECLARE_MESSAGE_MAP()
     afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);

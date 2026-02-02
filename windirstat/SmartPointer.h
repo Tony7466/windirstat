@@ -29,81 +29,63 @@ public:
     SmartPointer(const SmartPointer&) = delete; // non-copyable
     T operator=(const SmartPointer& lp) = delete; // copy assignment forbidden
 
-    SmartPointer(std::function<void(T)> cleanup) : m_Cleanup(std::move(cleanup)), m_Data(nullptr) {}
-    SmartPointer(std::function<void(T)> cleanup, T data) : m_Cleanup(std::move(cleanup)), m_Data(data) {}
+    SmartPointer(std::function<void(T)> cleanup) : m_cleanup(std::move(cleanup)), m_data(nullptr) {}
+    SmartPointer(std::function<void(T)> cleanup, T data) : m_cleanup(std::move(cleanup)), m_data(data) {}
 
     ~SmartPointer()
     {
-        Cleanup();
+        Release();
     }
 
     SmartPointer(SmartPointer&& src) noexcept
     {
-        m_Cleanup = src.m_Cleanup;
-        m_Data = src.m_Data;
-        src.m_Data = nullptr;
-    }
-
-    void Cleanup()
-    {
-        if (m_Data != nullptr)
-        {
-            m_Cleanup(m_Data);
-        }
+        m_cleanup = src.m_cleanup;
+        m_data = src.m_data;
+        src.m_data = nullptr;
     }
 
     SmartPointer& operator=(SmartPointer&& src) noexcept
     {
         if (std::addressof(*this) != std::addressof(src))
         {
-            Cleanup();
-            m_Cleanup = src.m_Cleanup;
-            m_Data = src.m_Data;
-            src.m_Data = nullptr;
+            Release();
+            m_cleanup = std::move(src.m_cleanup);
+            m_data = src.m_data;
+            src.m_data = nullptr;
         }
 
         return *this;
     }
 
+    bool IsValid() const noexcept
+    {
+        return m_data != nullptr && m_data != INVALID_HANDLE_VALUE;
+    }
+
     void Release() noexcept
     {
-        m_Data = nullptr;
-    }
-
-    operator T()
-    {
-        return m_Data;
-    }
-
-    T& operator*()
-    {
-        return m_Data;
-    }
-
-    T* operator&()
-    {
-        return &m_Data;
-    }
-
-    T operator->()
-    {
-        return m_Data;
+        if (IsValid())
+        {
+            m_cleanup(m_data);
+            m_data = nullptr;
+        }
     }
 
     T operator=(T lp)
     {
-        Cleanup();
-        m_Data = lp;
-        return m_Data;
+        Release();
+        m_data = lp;
+        return m_data;
     }
 
-    bool operator!()
-    {
-        return m_Data == nullptr;
-    }
+    operator T() { return m_data; }
+    T& operator*() { return m_data; }
+    T* operator&() { return &m_data; }
+    T operator->() { return m_data; }
+    bool operator!() { return m_data == nullptr; }
 
 private:
 
-    std::function<void(T)> m_Cleanup;
-    T m_Data;
+    std::function<void(T)> m_cleanup;
+    T m_data;
 };

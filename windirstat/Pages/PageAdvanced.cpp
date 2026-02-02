@@ -15,14 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#include "stdafx.h"
-#include "MainFrame.h"
+#include "pch.h"
 #include "PageAdvanced.h"
-#include "DirStatDoc.h"
-#include "Options.h"
-#include "Localization.h"
-#include "WinDirStat.h"
-#include "DarkMode.h"
 
 IMPLEMENT_DYNAMIC(CPageAdvanced, CMFCPropertyPage)
 
@@ -38,19 +32,20 @@ COptionsPropertySheet* CPageAdvanced::GetSheet() const
 void CPageAdvanced::DoDataExchange(CDataExchange* pDX)
 {
     CMFCPropertyPage::DoDataExchange(pDX);
-    DDX_Check(pDX, IDC_EXCLUDE_VOLUME_MOUNT_POINTS, m_ExcludeVolumeMountPoints);
-    DDX_Check(pDX, IDC_EXCLUDE_JUNCTIONS, m_ExcludeJunctions);
-    DDX_Check(pDX, IDC_EXCLUDE_SYMLINKS_DIRECTORY, m_ExcludeSymbolicLinksDirectory);
-    DDX_Check(pDX, IDC_SKIP_CLOUD_LINKS, m_SkipDupeDetectionCloudLinks);
-    DDX_Check(pDX, IDC_EXCLUDE_HIDDEN_DIRECTORY, m_SkipHiddenDirectory);
-    DDX_Check(pDX, IDC_EXCLUDE_PROTECTED_DIRECTORY, m_SkipProtectedDirectory);
-    DDX_Check(pDX, IDC_BACKUP_RESTORE, m_UseBackupRestore);
-    DDX_Check(pDX, IDC_EXCLUDE_SYMLINKS_FILE, m_ExcludeSymbolicLinksFile);
-    DDX_Check(pDX, IDC_EXCLUDE_HIDDEN_FILE, m_SkipHiddenFile);
-    DDX_Check(pDX, IDC_EXCLUDE_PROTECTED_FILE, m_SkipProtectedFile);
-    DDX_Text(pDX, IDC_LARGEST_FILE_COUNT, m_LargestFileCount);
-    DDX_Text(pDX, IDC_FOLDER_HISTORY_COUNT, m_FolderHistoryCount);
-    DDX_CBIndex(pDX, IDC_COMBO_THREADS, m_ScanningThreads);
+    DDX_Check(pDX, IDC_EXCLUDE_VOLUME_MOUNT_POINTS, m_excludeVolumeMountPoints);
+    DDX_Check(pDX, IDC_EXCLUDE_JUNCTIONS, m_excludeJunctions);
+    DDX_Check(pDX, IDC_EXCLUDE_SYMLINKS_DIRECTORY, m_excludeSymbolicLinksDirectory);
+    DDX_Check(pDX, IDC_SKIP_CLOUD_LINKS, m_skipDupeDetectionCloudLinks);
+    DDX_Check(pDX, IDC_EXCLUDE_HIDDEN_DIRECTORY, m_skipHiddenDirectory);
+    DDX_Check(pDX, IDC_EXCLUDE_PROTECTED_DIRECTORY, m_skipProtectedDirectory);
+    DDX_Check(pDX, IDC_BACKUP_RESTORE, m_useBackupRestore);
+    DDX_Check(pDX, IDC_EXCLUDE_SYMLINKS_FILE, m_excludeSymbolicLinksFile);
+    DDX_Check(pDX, IDC_EXCLUDE_HIDDEN_FILE, m_skipHiddenFile);
+    DDX_Check(pDX, IDC_EXCLUDE_PROTECTED_FILE, m_skipProtectedFile);
+    DDX_Check(pDX, IDC_PROCESS_HARDLINKS, m_processHardlinks);
+    DDX_Text(pDX, IDC_LARGEST_FILE_COUNT, m_largestFileCount);
+    DDX_Text(pDX, IDC_FOLDER_HISTORY_COUNT, m_folderHistoryCount);
+    DDX_CBIndex(pDX, IDC_COMBO_THREADS, m_scanningThreads);
 }
 
 BEGIN_MESSAGE_MAP(CPageAdvanced, CMFCPropertyPage)
@@ -65,6 +60,7 @@ BEGIN_MESSAGE_MAP(CPageAdvanced, CMFCPropertyPage)
     ON_BN_CLICKED(IDC_EXCLUDE_SYMLINKS_FILE, OnSettingChanged)
     ON_BN_CLICKED(IDC_EXCLUDE_HIDDEN_FILE, OnSettingChanged)
     ON_BN_CLICKED(IDC_EXCLUDE_PROTECTED_FILE, OnSettingChanged)
+    ON_BN_CLICKED(IDC_PROCESS_HARDLINKS, OnSettingChanged)
     ON_BN_CLICKED(IDC_RESET_PREFERENCES, &CPageAdvanced::OnBnClickedResetPreferences)
     ON_EN_CHANGE(IDC_LARGEST_FILE_COUNT, &CPageAdvanced::OnEnChangeLargestFileCount)
     ON_EN_CHANGE(IDC_FOLDER_HISTORY_COUNT, &CPageAdvanced::OnEnChangeFolderHistoryCount)
@@ -86,19 +82,20 @@ BOOL CPageAdvanced::OnInitDialog()
     // Apply dark mode to this property page
     DarkMode::AdjustControls(GetSafeHwnd());
 
-    m_ExcludeVolumeMountPoints = COptions::ExcludeVolumeMountPoints;
-    m_ExcludeJunctions = COptions::ExcludeJunctions;
-    m_ExcludeSymbolicLinksDirectory = COptions::ExcludeSymbolicLinksDirectory;
-    m_SkipDupeDetectionCloudLinks = COptions::SkipDupeDetectionCloudLinks;
-    m_SkipHiddenDirectory = COptions::ExcludeHiddenDirectory;
-    m_SkipProtectedDirectory = COptions::ExcludeProtectedDirectory;
-    m_ExcludeSymbolicLinksFile = COptions::ExcludeSymbolicLinksFile;
-    m_SkipHiddenFile = COptions::ExcludeHiddenFile;
-    m_SkipProtectedFile = COptions::ExcludeProtectedFile;
-    m_UseBackupRestore = COptions::UseBackupRestore;
-    m_ScanningThreads = COptions::ScanningThreads - 1;
-    m_LargestFileCount = std::to_wstring(COptions::LargeFileCount.Obj()).c_str();
-    m_FolderHistoryCount = std::to_wstring(COptions::FolderHistoryCount.Obj()).c_str();
+    m_excludeVolumeMountPoints = COptions::ExcludeVolumeMountPoints;
+    m_excludeJunctions = COptions::ExcludeJunctions;
+    m_excludeSymbolicLinksDirectory = COptions::ExcludeSymbolicLinksDirectory;
+    m_skipDupeDetectionCloudLinks = COptions::SkipDupeDetectionCloudLinks;
+    m_skipHiddenDirectory = COptions::ExcludeHiddenDirectory;
+    m_skipProtectedDirectory = COptions::ExcludeProtectedDirectory;
+    m_excludeSymbolicLinksFile = COptions::ExcludeSymbolicLinksFile;
+    m_skipHiddenFile = COptions::ExcludeHiddenFile;
+    m_skipProtectedFile = COptions::ExcludeProtectedFile;
+    m_useBackupRestore = COptions::UseBackupRestore;
+    m_processHardlinks = COptions::ProcessHardlinks;
+    m_scanningThreads = COptions::ScanningThreads - 1;
+    m_largestFileCount = std::to_wstring(COptions::LargeFileCount.Obj()).c_str();
+    m_folderHistoryCount = std::to_wstring(COptions::FolderHistoryCount.Obj()).c_str();
 
     UpdateData(FALSE);
     return TRUE;
@@ -109,39 +106,46 @@ void CPageAdvanced::OnOK()
     UpdateData();
 
     const bool refreshReparsepoints =
-        COptions::ExcludeJunctions && COptions::ExcludeJunctions != static_cast<bool>(m_ExcludeJunctions) ||
-        COptions::ExcludeSymbolicLinksDirectory && COptions::ExcludeSymbolicLinksDirectory != static_cast<bool>(m_ExcludeSymbolicLinksDirectory) ||
-        COptions::ExcludeVolumeMountPoints && COptions::ExcludeVolumeMountPoints != static_cast<bool>(m_ExcludeVolumeMountPoints) ||
-        COptions::ExcludeSymbolicLinksFile && COptions::ExcludeSymbolicLinksFile != static_cast<bool>(m_ExcludeSymbolicLinksFile);
-    const bool refreshAll = COptions::ExcludeHiddenDirectory != static_cast<bool>(m_SkipHiddenDirectory) ||
-        COptions::ExcludeProtectedDirectory != static_cast<bool>(m_SkipProtectedDirectory) ||
-        COptions::ExcludeHiddenFile != static_cast<bool>(m_SkipHiddenFile) ||
-        COptions::ExcludeProtectedFile != static_cast<bool>(m_SkipProtectedFile);
+        COptions::ExcludeJunctions && COptions::ExcludeJunctions != static_cast<bool>(m_excludeJunctions) ||
+        COptions::ExcludeSymbolicLinksDirectory && COptions::ExcludeSymbolicLinksDirectory != static_cast<bool>(m_excludeSymbolicLinksDirectory) ||
+        COptions::ExcludeVolumeMountPoints && COptions::ExcludeVolumeMountPoints != static_cast<bool>(m_excludeVolumeMountPoints) ||
+        COptions::ExcludeSymbolicLinksFile && COptions::ExcludeSymbolicLinksFile != static_cast<bool>(m_excludeSymbolicLinksFile);
+    const bool refreshAll = COptions::ExcludeHiddenDirectory != static_cast<bool>(m_skipHiddenDirectory) ||
+        COptions::ExcludeProtectedDirectory != static_cast<bool>(m_skipProtectedDirectory) ||
+        COptions::ExcludeHiddenFile != static_cast<bool>(m_skipHiddenFile) ||
+        COptions::ExcludeProtectedFile != static_cast<bool>(m_skipProtectedFile) ||
+        COptions::ProcessHardlinks != static_cast<bool>(m_processHardlinks);
 
-    COptions::ExcludeJunctions = (FALSE != m_ExcludeJunctions);
-    COptions::ExcludeSymbolicLinksDirectory = (FALSE != m_ExcludeSymbolicLinksDirectory);
-    COptions::ExcludeVolumeMountPoints = (FALSE != m_ExcludeVolumeMountPoints);
-    COptions::SkipDupeDetectionCloudLinks = (FALSE != m_SkipDupeDetectionCloudLinks);
-    COptions::ExcludeHiddenDirectory = (FALSE != m_SkipHiddenDirectory);
-    COptions::ExcludeProtectedDirectory = (FALSE != m_SkipProtectedDirectory);
-    COptions::ExcludeSymbolicLinksFile = (FALSE != m_ExcludeSymbolicLinksFile);
-    COptions::ExcludeHiddenFile = (FALSE != m_SkipHiddenFile);
-    COptions::ExcludeProtectedFile = (FALSE != m_SkipProtectedFile);
-    COptions::UseBackupRestore = (FALSE != m_UseBackupRestore);
-    COptions::ScanningThreads = m_ScanningThreads + 1;
-    COptions::LargeFileCount = std::stoi(m_LargestFileCount.GetString());
-    COptions::FolderHistoryCount = std::stoi(m_FolderHistoryCount.GetString());
+    COptions::ExcludeJunctions = (FALSE != m_excludeJunctions);
+    COptions::ExcludeSymbolicLinksDirectory = (FALSE != m_excludeSymbolicLinksDirectory);
+    COptions::ExcludeVolumeMountPoints = (FALSE != m_excludeVolumeMountPoints);
+    COptions::SkipDupeDetectionCloudLinks = (FALSE != m_skipDupeDetectionCloudLinks);
+    COptions::ExcludeHiddenDirectory = (FALSE != m_skipHiddenDirectory);
+    COptions::ExcludeProtectedDirectory = (FALSE != m_skipProtectedDirectory);
+    COptions::ExcludeSymbolicLinksFile = (FALSE != m_excludeSymbolicLinksFile);
+    COptions::ExcludeHiddenFile = (FALSE != m_skipHiddenFile);
+    COptions::ExcludeProtectedFile = (FALSE != m_skipProtectedFile);
+    COptions::UseBackupRestore = (FALSE != m_useBackupRestore);
+    COptions::ProcessHardlinks = (FALSE != m_processHardlinks);
+    COptions::ScanningThreads = m_scanningThreads + 1;
+    COptions::LargeFileCount = std::stoi(m_largestFileCount.GetString());
+    COptions::FolderHistoryCount = std::stoi(m_folderHistoryCount.GetString());
+
+    // Trim the folder history if needed
+    COptions::SelectDrivesFolder.Obj().resize(min(static_cast<size_t>(COptions::FolderHistoryCount),
+        COptions::SelectDrivesFolder.Obj().size()));
 
     if (refreshAll)
     {
-        CDirStatDoc::GetDocument()->OnOpenDocument(
-            CDirStatDoc::GetDocument()->GetPathName().GetString());
+        CDirStatDoc::Get()->OnOpenDocument(
+            CDirStatDoc::Get()->GetPathName().GetString());
     }
     else if (refreshReparsepoints)
     {
-        CDirStatDoc::GetDocument()->RefreshReparsePointItems();
+        CDirStatDoc::Get()->RefreshReparsePointItems();
     }
 
+    CDirStatDoc::Get()->UpdateAllViews(nullptr, HINT_LISTSTYLECHANGED);
     CMFCPropertyPage::OnOK();
 }
 
@@ -160,7 +164,8 @@ void CPageAdvanced::OnEnChangeLargestFileCount()
     // This function limits the number of files in the largest files list
     UpdateData(TRUE);
 
-    m_LargestFileCount = std::to_wstring(std::clamp(_wtoi(m_LargestFileCount),
+    m_largestFileCount = m_largestFileCount.IsEmpty() ? L"0" :
+        std::to_wstring(std::clamp(std::stoi(m_largestFileCount.GetString()),
         COptions::LargeFileCount.Min(), COptions::LargeFileCount.Max())).c_str();
 
     UpdateData(FALSE);
@@ -171,7 +176,8 @@ void CPageAdvanced::OnEnChangeFolderHistoryCount()
     // This function limits the value in the folder history count
     UpdateData(TRUE);
 
-    m_FolderHistoryCount = std::to_wstring(std::clamp(_wtoi(m_FolderHistoryCount),
+    m_folderHistoryCount = m_folderHistoryCount.IsEmpty() ? L"0" :
+        std::to_wstring(std::clamp(std::stoi(m_folderHistoryCount.GetString()),
         COptions::FolderHistoryCount.Min(), COptions::FolderHistoryCount.Max())).c_str();
 
     UpdateData(FALSE);

@@ -17,11 +17,24 @@
 
 #pragma once
 
-#include "SortingListControl.h"
-#include "DarkMode.h"
+#include "pch.h"
 
 class COwnerDrawnListControl;
 class CIconHandler;
+
+//
+// SSorting. A sorting specification. We sort by column1, and if two items
+// equal in column1, we sort them by column2.
+//
+struct SSorting
+{
+    int column1 = 0;
+    int column2 = 0;
+    int subitem1 = 0;
+    int subitem2 = 0;
+    bool ascending1 = true;
+    bool ascending2 = true;
+};
 
 //
 // COwnerDrawnListItem. An item in a COwnerDrawnListControl.
@@ -30,29 +43,32 @@ class CIconHandler;
 // DrawLabel() draws a standard label (width icon, text, selection and focus rect)
 //
 
-class COwnerDrawnListItem : public CSortingListItem
+class COwnerDrawnListItem
 {
 public:
     COwnerDrawnListItem() = default;
+    virtual ~COwnerDrawnListItem() = default;
 
     // This text is drawn, if DrawSubItem returns false
-    std::wstring GetText(int subitem) const override = 0;
-    // This color is used for the  current item
+    virtual std::wstring GetText(int subitem) const = 0;
+    // This color is used for the current item
     virtual COLORREF GetItemTextColor() const
     {
         return DarkMode::WdsSysColor(COLOR_WINDOWTEXT);
     }
+
+    // Comparison methods for sorting
+    virtual int Compare(const COwnerDrawnListItem* other, int subitem) const = 0;
+    int CompareSort(const COwnerDrawnListItem* other, const SSorting& sorting) const;
 
     // Return value is true, if the item draws itself.
     // width != NULL -> only determine width, do not draw.
     // If focus rectangle shall not begin leftmost, set *focusLeft
     // to the left edge of the desired focus rectangle.
     virtual bool DrawSubItem(int subitem, CDC* pdc, CRect rc, UINT state, int* width, int* focusLeft) = 0;
-    virtual void DrawAdditionalState(CDC* /*pdc*/, const CRect & /*rcLabel*/) const {}
+    virtual void DrawAdditionalState(CDC* /*pdc*/, const CRect& /*rcLabel*/) const {}
     void DrawSelection(const COwnerDrawnListControl* list, CDC* pdc, CRect rc, UINT state) const;
     virtual HICON GetIcon() = 0;
-
-protected:
     void DrawLabel(const COwnerDrawnListControl* list, CDC* pdc, CRect& rc, UINT state, int* width, int* focusLeft, bool indent = true);
     void DrawPercentage(CDC* pdc, CRect rc, double fraction, COLORREF color) const;
 };
@@ -60,18 +76,20 @@ protected:
 //
 // COwnerDrawnListControl. Must be report view. Deals with COwnerDrawnListItems.
 // Can have a grid or not (own implementation, don't set LVS_EX_GRIDLINES). Flicker-free.
+// Also handles sorting functionality (merged from CSortingListControl).
 //
-class COwnerDrawnListControl : public CSortingListControl
+class COwnerDrawnListControl : public CListCtrl
 {
     DECLARE_DYNAMIC(COwnerDrawnListControl)
 
 public:
-    COwnerDrawnListControl(int rowHeight, std::vector<int>* columnOrder, std::vector<int>* columnWidths);
+    COwnerDrawnListControl(std::vector<int>* columnOrder, std::vector<int>* columnWidths);
     ~COwnerDrawnListControl() override = default;
     void OnColumnsInserted();
     virtual void SysColorChanged();
-    
+
     int GetRowHeight() const;
+    void CalculateRowHeight();
     void ShowGrid(bool show);
     void ShowStripes(bool show);
     void ShowFullRowSelection(bool show);
@@ -94,25 +112,57 @@ public:
     int GetTextXMargin() const;
     int GetGeneralLeftIndent() const;
     CRect GetWholeSubitemRect(int item, int subitem) const;
-
+    void LoadPersistentAttributes();
     bool HasFocus() const;
-    bool IsShowSelectionAlways() const;
+    void AddExtendedStyle(DWORD exStyle);
+    void RemoveExtendedStyle(DWORD exStyle);
+    void InsertListItem(int i, COwnerDrawnListItem* item);
+
+    // Sorting functionality
+    const SSorting& GetSorting() const;
+    int ColumnToSubItem(int col) const;
+    void SetSorting(const SSorting& sorting);
+    void SetSorting(int sortColumn1, bool ascending1, int sortColumn2, bool ascending2);
+    void SetSorting(int sortColumn, bool ascending);
+    virtual void SortItems();
+    virtual bool GetAscendingDefault(int column);
+
+    // Selection change batching
+    void PostSelectionChanged();
 
 protected:
     void InitializeColors();
     void DrawItem(LPDRAWITEMSTRUCT pdis) override;
     int GetSubItemWidth(COwnerDrawnListItem* item, int subitem);
+    void SavePersistentAttributes() const;
 
-    COLORREF m_WindowColor = CLR_NONE; // The default background color if !m_ShowStripes
-    COLORREF m_StripeColor = CLR_NONE; // The stripe color, used for every other item if m_ShowStripes
-    int m_RowHeight;                   // Height of an item
-    bool m_ShowGrid = false;           // Whether to draw a grid
-    bool m_ShowStripes = false;        // Whether to show stripes
-    bool m_ShowFullRowSelect = false;  // Whether to draw full row selection
+    // Owner-drawn related members
+    COLORREF m_windowColor = CLR_NONE; // The default background color if !m_showStripes
+    COLORREF m_stripeColor = CLR_NONE; // The stripe color, used for every other item if m_showStripes
+    int m_rowHeight = 20;              // Height of an item
+    int m_columnCount = 0;
+    bool m_showGrid = false;           // Whether to draw a grid
+    bool m_showStripes = false;        // Whether to show stripes
+    bool m_showFullRowSelect = false;  // Whether to draw full row selection
+
+    // Sorting related members (merged from CSortingListControl)
+    std::vector<int>* m_columnOrder = nullptr;
+    std::vector<int>* m_columnWidths = nullptr;
+    SSorting m_sorting;
+    int m_indicatedColumn = -1;
+
+    // Selection change batching
+    static constexpr DWORD WM_SELECTION_CHANGED = WM_USER + 1;
+    bool m_selectionChangePending = false;
 
     DECLARE_MESSAGE_MAP()
     afx_msg BOOL OnEraseBkgnd(CDC* pDC);
     afx_msg void OnHdnDividerdblclick(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnHdnItemchanging(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnCustomDraw(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnLvnGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnHdnItemClick(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnHdnItemDblClick(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnDestroy();
+    afx_msg virtual LRESULT OnSelectionChanged(WPARAM wParam, LPARAM lParam);
 };

@@ -24,33 +24,46 @@ class CFileDupeControl final : public CTreeListControl
 {
 public:
     CFileDupeControl();
-    ~CFileDupeControl() override { m_Singleton = nullptr; }
+    ~CFileDupeControl() override { m_singleton = nullptr; }
     bool GetAscendingDefault(int column) override;
-    static CFileDupeControl* Get() { return m_Singleton; }
+    static CFileDupeControl* Get() { return m_singleton; }
+    CItemDupe* GetRootItem() const { return m_rootItem; }
     void ProcessDuplicate(CItem* item, BlockingQueue<CItem*>* queue);
     void RemoveItem(CItem* items);
     void SortItems() override;
+    void AfterDeleteAllItems() override;
 
-    std::mutex m_HashTrackerMutex;
-    std::map<ULONGLONG, std::vector<CItem*>> m_SizeTracker;
-    std::map<std::vector<BYTE>, std::vector<CItem*>> m_HashTrackerSmall;
-    std::map<std::vector<BYTE>, std::vector<CItem*>> m_HashTrackerLarge;
+    std::mutex m_sizeTrackerMutex;
+    std::map<ULONGLONG, std::vector<CItem*>> m_sizeTracker;
+    std::mutex m_trackerSmallMutex;
+    std::mutex m_trackerMediumMutex;
+    std::mutex m_trackerLargeMutex;
+    std::map<std::vector<BYTE>, std::vector<CItem*>> m_trackerSmall;
+    std::map<std::vector<BYTE>, std::vector<CItem*>> m_trackerMedium;
+    std::map<std::vector<BYTE>, std::vector<CItem*>> m_trackerLarge;
     
-    std::mutex m_NodeTrackerMutex;
-    std::map<std::vector<BYTE>, CItemDupe*> m_NodeTracker;
-    std::map<CItemDupe*, std::set<CItem*>> m_ChildTracker;
-    std::vector<std::pair<CItemDupe*, CItemDupe*>> m_PendingListAdds;
+    std::mutex m_nodeTrackerMutex;
+    std::map<std::vector<BYTE>, CItemDupe*> m_nodeTracker;
+    std::map<CItemDupe*, std::set<CItem*>> m_childTracker;
+    
+    SingleConsumerQueue<std::pair<CItemDupe*, CItemDupe*>> m_pendingListAdds;
 
 protected:
 
-    static constexpr auto m_PartialBufferSize = 4ull * 1024ull;
-    static CFileDupeControl* m_Singleton;
-    bool m_ShowCloudWarningOnThisScan = false;
-    
-    void OnItemDoubleClick(int i) override;
+    constexpr static ULONGLONG HashThresold(ITEMTYPE hashLevel)
+    {
+        return
+            hashLevel == ITHASH_SMALL ? 4ull * 1024ull :
+            hashLevel == ITHASH_MEDIUM ? 1024ull * 1024ull : ULONGLONG_MAX;
+    }
 
+    static CFileDupeControl* m_singleton;
+    CItemDupe* m_rootItem = nullptr;
+    bool m_showCloudWarningOnThisScan = false;
+
+    void OnItemDoubleClick(int i) override;
+    
     DECLARE_MESSAGE_MAP()
     afx_msg void OnSetFocus(CWnd* pOldWnd);
     afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
-    afx_msg BOOL OnDeleteAllItems(NMHDR* pNMHDR, LRESULT* pResult);
 };

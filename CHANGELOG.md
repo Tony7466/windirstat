@@ -1,3 +1,58 @@
+<a name="windirstat-2.5.0"></a>
+# WinDirStat 2.5.0
+
+Enhancements
+- Added dark mode
+- Added direct NTFS MFT scanning option
+- Added hardlink tracking
+- Added progress dialogs for long-running operations
+- Added ability to search scan results
+- Added ability to auto-search from extensions menu
+- Added ability to move files
+- Added ability to compute and display file hashes
+- Added ability to save duplicate files to CSV file
+- Added elevation eligibility detection and prompting
+- Added new keyboard shortcuts
+- Added previous folder tracking history
+- Added option to launch programs and features applet
+- Added option to optimize virtual hard disk files
+- Added command line scanning options
+- Added dism analyze option
+- Added option to toggle Explorer context menu within application
+- Added automatic copying of drive mapping when launched as admin
+- Enhanced DPI awareness
+- Changed sizes to use binary prefixes
+- Changed treemap ability to show logical or physical sizes
+- Changed file scan output to be sorted by path
+- Changed column autosize to respect header width
+- Changed volume display to show free, total, and percentages
+- Changed compression option to recurse directories
+- Changed CSV file output to be sorted by path
+- Improved command-line parsing for target directory
+- Improved delete and empty folder interface behaviors
+- Improved various translations
+- Added Swedish translation
+- Added Japanese translation
+- Added Turkish translation
+- Various performance enhancements
+
+Bug Fixes
+- Corrected icon caching issues that could result in freezing
+- Corrected exclusion case sensitivity selection for filtering
+- Corrected extension colorization not working on file load
+- Corrected highlight offset when not zoomed
+- Corrected Explorer selection in treemap view
+- Corrected potential crash when exiting program
+- Corrected last-sibling node rendering
+- Various other minor bug fixes
+
+Miscellaneous
+- Microsoft Windows 7 no longer supported
+- Microsoft Windows Server 2008 R2 no longer supported
+- ARM 32-Bit builds no longer supported
+- CSV files created with previous versions will not be loadable
+
+<a name="windirstat-2.2.2"></a>
 # WinDirStat 2.2.2
 
 ## Enhancements
@@ -14,6 +69,7 @@
 - Corrected treemap zoomed view hit detection and highlighting
 - Corrected treemap custom grid color not being applied
 
+<a name="windirstat-2.2.1"></a>
 # WinDirStat 2.2.1
 
 ## Enhancements
@@ -36,7 +92,8 @@
 * Addressed numerous potential hanging / crashing scenarios
 * Addressed copy / paste not always working
 * Addressed hiding toolbar and status bar setting persistence
-  
+
+<a name="windirstat-2.1.1"></a>
 # WinDirStat 2.1.1
 
 ## Enhancements
@@ -59,6 +116,7 @@
 * Addressed hover over treemap not showing filename properly
 * Addressed not being able to scan in some Acronis folders
 
+<a name="windirstat-2.0.3"></a>
 # WinDirStat 2.0.3
 
 ## Enhancements
@@ -73,7 +131,8 @@
 * Addressed Norwegian language loading Dutch language
 * Addressed Portuguese mistranslation (thanks @PedroBittarBarao)
 * Addressed various typos in code comments (thanks @NathanBaulch)
-  
+
+<a name="windirstat-2.0.1"></a>
 # WinDirStat 2.0.1
 
 ## Enhancements

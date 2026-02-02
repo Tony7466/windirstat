@@ -24,25 +24,33 @@
 
 #pragma once
 
-#include "stdafx.h"
+#include "pch.h"
 
 class CSelectObject final
 {
 public:
     CSelectObject(CDC* pdc, CGdiObject* pObject)
     {
-        m_POldObject = pdc->SelectObject(pObject);
-        m_Pdc        = pdc;
+        m_pOldObject = pdc->SelectObject(pObject);
+        m_pdc        = pdc;
     }
+
+    CSelectObject(const CSelectObject&) = delete;
+    CSelectObject& operator=(const CSelectObject&) = delete;
+    CSelectObject(CSelectObject&&) = delete;
+    CSelectObject& operator=(CSelectObject&&) = delete;
 
     ~CSelectObject()
     {
-        m_Pdc->SelectObject(m_POldObject);
+        if (m_pdc != nullptr && m_pOldObject != nullptr)
+        {
+            m_pdc->SelectObject(m_pOldObject);
+        }
     }
 
 protected:
-    CDC* m_Pdc;
-    CGdiObject* m_POldObject;
+    CDC* m_pdc = nullptr;
+    CGdiObject* m_pOldObject = nullptr;
 };
 
 class CSelectStockObject final
@@ -50,18 +58,26 @@ class CSelectStockObject final
 public:
     CSelectStockObject(CDC* pdc, const int nIndex)
     {
-        m_POldObject = pdc->SelectStockObject(nIndex);
-        m_Pdc = pdc;
+        m_pOldObject = pdc->SelectStockObject(nIndex);
+        m_pdc = pdc;
     }
+
+    CSelectStockObject(const CSelectStockObject&) = delete;
+    CSelectStockObject& operator=(const CSelectStockObject&) = delete;
+    CSelectStockObject(CSelectStockObject&&) = delete;
+    CSelectStockObject& operator=(CSelectStockObject&&) = delete;
 
     ~CSelectStockObject()
     {
-        m_Pdc->SelectObject(m_POldObject);
+        if (m_pdc != nullptr && m_pOldObject != nullptr)
+        {
+            m_pdc->SelectObject(m_pOldObject);
+        }
     }
 
 protected:
-    CDC* m_Pdc;
-    CGdiObject* m_POldObject;
+    CDC* m_pdc = nullptr;
+    CGdiObject* m_pOldObject = nullptr;
 };
 
 class CSetBkMode final
@@ -69,18 +85,26 @@ class CSetBkMode final
 public:
     CSetBkMode(CDC* pdc, const int mode)
     {
-        m_Pdc = pdc;
-        m_OldMode = pdc->SetBkMode(mode);
+        m_pdc = pdc;
+        m_oldMode = pdc->SetBkMode(mode);
     }
+
+    CSetBkMode(const CSetBkMode&) = delete;
+    CSetBkMode& operator=(const CSetBkMode&) = delete;
+    CSetBkMode(CSetBkMode&&) = delete;
+    CSetBkMode& operator=(CSetBkMode&&) = delete;
 
     ~CSetBkMode()
     {
-        m_Pdc->SetBkMode(m_OldMode);
+        if (m_pdc != nullptr)
+        {
+            m_pdc->SetBkMode(m_oldMode);
+        }
     }
 
 protected:
-    CDC* m_Pdc;
-    int m_OldMode;
+    CDC* m_pdc = nullptr;
+    int m_oldMode = 0;
 };
 
 class CSetTextColor final
@@ -88,18 +112,26 @@ class CSetTextColor final
 public:
     CSetTextColor(CDC* pdc, const COLORREF color)
     {
-        m_Pdc = pdc;
-        m_OldColor = pdc->SetTextColor(color);
+        m_pdc = pdc;
+        m_oldColor = pdc->SetTextColor(color);
     }
+
+    CSetTextColor(const CSetTextColor&) = delete;
+    CSetTextColor& operator=(const CSetTextColor&) = delete;
+    CSetTextColor(CSetTextColor&&) = delete;
+    CSetTextColor& operator=(CSetTextColor&&) = delete;
 
     ~CSetTextColor()
     {
-        m_Pdc->SetTextColor(m_OldColor);
+        if (m_pdc != nullptr)
+        {
+            m_pdc->SetTextColor(m_oldColor);
+        }
     }
 
 protected:
-    CDC* m_Pdc;
-    COLORREF m_OldColor;
+    CDC* m_pdc = nullptr;
+    COLORREF m_oldColor = CLR_NONE;
 };
 
 class CSetBkColor final
@@ -107,18 +139,26 @@ class CSetBkColor final
 public:
     CSetBkColor(CDC* pdc, const COLORREF color)
     {
-        m_Pdc = pdc;
-        m_OldColor = pdc->SetBkColor(color);
+        m_pdc = pdc;
+        m_oldColor = pdc->SetBkColor(color);
     }
+
+    CSetBkColor(const CSetBkColor&) = delete;
+    CSetBkColor& operator=(const CSetBkColor&) = delete;
+    CSetBkColor(CSetBkColor&&) = delete;
+    CSetBkColor& operator=(CSetBkColor&&) = delete;
 
     ~CSetBkColor()
     {
-        m_Pdc->SetBkColor(m_OldColor);
+        if (m_pdc != nullptr)
+        {
+            m_pdc->SetBkColor(m_oldColor);
+        }
     }
 
 protected:
-    CDC* m_Pdc;
-    COLORREF m_OldColor;
+    CDC* m_pdc = nullptr;
+    COLORREF m_oldColor = CLR_NONE;
 };
 
 class CSaveDC final
@@ -126,30 +166,29 @@ class CSaveDC final
 public:
     CSaveDC(CDC* pdc)
     {
-        m_Pdc= pdc;
-        m_Save = pdc->SaveDC();
+        m_pdc= pdc;
+        m_save = pdc->SaveDC();
     }
+
+    CSaveDC(const CSaveDC&) = delete;
+    CSaveDC& operator=(const CSaveDC&) = delete;
+    CSaveDC(CSaveDC&&) = delete;
+    CSaveDC& operator=(CSaveDC&&) = delete;
 
     ~CSaveDC()
     {
-        m_Pdc->RestoreDC(m_Save);
+        if (m_pdc != nullptr)
+        {
+            m_pdc->RestoreDC(m_save);
+        }
     }
 
 protected:
-    CDC* m_Pdc;
-    int m_Save;
+    CDC* m_pdc = nullptr;
+    int m_save = 0;
 };
 
 inline BOOL CreateRectRgn(CRgn& rgn, const CRect rc)
 {
     return rgn.CreateRectRgn(rc.left, rc.top, rc.right, rc.bottom);
-}
-
-inline COLORREF MakeShadowColor(const COLORREF c, const int percent)
-{
-    return RGB(
-        GetRValue(c) * percent / 100,
-        GetGValue(c) * percent / 100,
-        GetBValue(c) * percent / 100
-    );
 }

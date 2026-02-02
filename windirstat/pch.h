@@ -1,8 +1,4 @@
-﻿// stdafx.h - include file for standard system include files,
-// or project specific include files that are used frequently,
-// but are changed infrequently
-//
-// WinDirStat - Directory Statistics
+﻿// WinDirStat - Directory Statistics
 // Copyright © WinDirStat Team
 //
 // This program is free software: you can redistribute it and/or modify
@@ -26,6 +22,13 @@
 #define VC_EXTRALEAN
 #endif
 
+// Exclude unneeded MFC components
+#define _AFX_NO_DAO_SUPPORT
+#define _AFX_NO_CTL3D_SUPPORT
+#define _ATL_NO_HOSTING
+#define _ATL_NO_DOCHOSTUIHANDLER
+#define _ATL_NO_UUIDOF
+
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS  // some CStringW constructors will be explicit
 
 // enables new GDI+ version
@@ -33,10 +36,6 @@
 
 #include <afxwin.h>         // MFC Core
 #include <afxext.h>         // MFC Extensions
-
-#include <afxdtctl.h>       // MFC IE 4
-#include <afxcmn.h>         // MFC Common Controls
-#include <afxmt.h>          // MFC Multi-threading
 #include <afxcontrolbars.h> // MFC support for ribbons and control bars
 
 // Windows API headers
@@ -55,11 +54,16 @@
 #include <dwmapi.h>
 #include <comdef.h>
 #include <wbemidl.h>
+#include <initguid.h>
+#include <virtdisk.h>
+#include <tlhelp32.h>
+#include <fdi.h>
 
 // STL headers
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <cmath>
 #include <condition_variable>
 #include <execution>
@@ -87,3 +91,22 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+// Common WinDirStat headers
+#include "resource.h"
+#include "Tracer.h"
+#include "DarkMode.h"
+#include "Constants.h"
+#include "HelpersTasks.h"
+#include "HelpersInterface.h"
+#include "BlockingQueue.h"
+#include "Options.h"
+#include "WinDirStat.h"
+#include "DirStatDoc.h"
+#include "Item.h"
+#include "SmartPointer.h"
+#include "Localization.h"
+#include "MainFrame.h"
+#include "MessageBoxDlg.h"
+#include "LangStrings.h"
+#include "SelectObject.h"

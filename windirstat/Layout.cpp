@@ -15,11 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#include "stdafx.h"
-#include "WinDirStat.h"
-#include "SelectObject.h"
+#include "pch.h"
 #include "Layout.h"
-#include "MainFrame.h"
 
 /////////////////////////////////////////////////////////////////////////////
 // CLayoutDialogEx
@@ -35,22 +32,19 @@ END_MESSAGE_MAP()
 BOOL CLayoutDialogEx::PreTranslateMessage(MSG* pMsg)
 {
     // Check for Ctrl+C key combination
-    if (pMsg->message == WM_KEYDOWN && pMsg->wParam == 'C' && 
-        (GetKeyState(VK_CONTROL) & HSHELL_HIGHBIT))
+    if (pMsg->message == WM_KEYDOWN && pMsg->wParam == 'C' && IsControlKeyDown())
     {
         // Get the mouse cursor position
         CPoint pt;
         GetCursorPos(&pt);
         ScreenToClient(&pt);
-        
+
         // Find which child window is at this position
         if (const CWnd* pWndUnderCursor = ChildWindowFromPoint(pt, CWP_SKIPINVISIBLE);
             pWndUnderCursor != nullptr && pWndUnderCursor != this)
         {
-            // Check if it's a static control
-            WCHAR className[MAX_CLASS_NAME]{};
-            ::GetClassName(pWndUnderCursor->GetSafeHwnd(), className, std::size(className));
-            if (_wcsicmp(className, WC_STATIC) == 0)
+            // Prefer MFC RTTI over raw window class-name checks.
+            if (pWndUnderCursor->IsKindOf(RUNTIME_CLASS(CStatic)))
             {
                 // Get the text from the static control
                 CString text;
@@ -70,18 +64,18 @@ BOOL CLayoutDialogEx::PreTranslateMessage(MSG* pMsg)
 void CLayoutDialogEx::OnSize(UINT nType, int cx, int cy)
 {
     CDialogEx::OnSize(nType, cx, cy);
-    m_Layout.OnSize();
+    m_layout.OnSize();
 }
 
 void CLayoutDialogEx::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
-    m_Layout.OnGetMinMaxInfo(lpMMI);
+    m_layout.OnGetMinMaxInfo(lpMMI);
     CDialogEx::OnGetMinMaxInfo(lpMMI);
 }
 
 void CLayoutDialogEx::OnDestroy()
 {
-    m_Layout.OnDestroy();
+    m_layout.OnDestroy();
     CDialogEx::OnDestroy();
 }
 
@@ -89,69 +83,69 @@ void CLayoutDialogEx::OnDestroy()
 // CLayout
 
 CLayout::CLayout(CWnd* dialog, RECT* placement)
-    : m_Wp(placement), m_Dialog(dialog), m_OriginalDialogSize(0, 0)
+    : m_wp(placement), m_dialog(dialog), m_originalDialogSize(0, 0)
 {
     ASSERT(dialog != nullptr);
 }
 
 int CLayout::AddControl(CWnd* control, double movex, double movey, double stretchx, double stretchy)
 {
-    m_Control.emplace_back(control, movex, movey, stretchx, stretchy);
-    return static_cast<int>(m_Control.size() - 1);
+    m_control.emplace_back(control, movex, movey, stretchx, stretchy);
+    return static_cast<int>(m_control.size() - 1);
 }
 
 void CLayout::AddControl(const UINT id, const double movex, const double movey, const double stretchx, const double stretchy)
 {
-    AddControl(m_Dialog->GetDlgItem(id), movex, movey, stretchx, stretchy);
+    AddControl(m_dialog->GetDlgItem(id), movex, movey, stretchx, stretchy);
 }
 
 void CLayout::OnInitDialog(const bool centerWindow)
 {
-    m_Dialog->SetIcon(CDirStatApp::Get()->LoadIcon(IDR_MAINFRAME), false);
+    m_dialog->SetIcon(CDirStatApp::Get()->LoadIcon(IDR_MAINFRAME), false);
 
     CRect rcDialog;
-    m_Dialog->GetWindowRect(rcDialog);
-    m_OriginalDialogSize = rcDialog.Size();
+    m_dialog->GetWindowRect(rcDialog);
+    m_originalDialogSize = rcDialog.Size();
 
-    for (auto& info : m_Control)
+    for (auto& info : m_control)
     {
         CRect rc;
         info.control->GetWindowRect(rc);
-        m_Dialog->ScreenToClient(rc);
+        m_dialog->ScreenToClient(rc);
         info.originalRectangle = rc;
     }
 
     // Create size gripper
     CRect sg;
-    m_Dialog->GetClientRect(sg);
-    sg.left = sg.right - m_SizeGripper.m_Width;
-    sg.top = sg.bottom - m_SizeGripper.m_Width;
-    m_SizeGripper.Create(m_Dialog, sg);
+    m_dialog->GetClientRect(sg);
+    sg.left = sg.right - m_sizeGripper.m_width;
+    sg.top = sg.bottom - m_sizeGripper.m_width;
+    m_sizeGripper.Create(m_dialog, sg);
 
-    const int i = AddControl(&m_SizeGripper, 1, 1, 0, 0);
-    m_Control[i].originalRectangle = sg;
+    const int i = AddControl(&m_sizeGripper, 1, 1, 0, 0);
+    m_control[i].originalRectangle = sg;
 
-    m_Dialog->MoveWindow(m_Wp);
+    m_dialog->MoveWindow(m_wp);
     if (centerWindow)
     {
-        m_Dialog->CenterWindow();
+        m_dialog->CenterWindow();
     }
 }
 
 void CLayout::OnDestroy() const
 {
-    m_Dialog->GetWindowRect(m_Wp);
+    m_dialog->GetWindowRect(m_wp);
 }
 
 void CLayout::OnSize()
 {
     CRect wrc;
-    m_Dialog->GetWindowRect(wrc);
-    const CSize diff = wrc.Size() - m_OriginalDialogSize;
+    m_dialog->GetWindowRect(wrc);
+    const CSize diff = wrc.Size() - m_originalDialogSize;
 
-    CPositioner pos(static_cast<int>(m_Control.size()));
+    CPositioner pos(static_cast<int>(m_control.size()));
 
-    for (const auto& [control, movex, movey, stretchx, stretchy, originalRectangle] : m_Control)
+    for (const auto& [control, movex, movey, stretchx, stretchy, originalRectangle] : m_control)
     {
         CRect rc = originalRectangle;
 
@@ -162,14 +156,14 @@ void CLayout::OnSize()
         pos.SetWindowPos(*control, rc.left, rc.top, rc.Width(), rc.Height(), SWP_NOOWNERZORDER | SWP_NOZORDER);
     }
 
-    m_Dialog->Invalidate();
+    m_dialog->Invalidate();
 }
 
 void CLayout::OnGetMinMaxInfo(MINMAXINFO* mmi)
 {
-    if (m_OriginalDialogSize.cx > 0) // Check if initialized
+    if (m_originalDialogSize.cx > 0) // Check if initialized
     {
-        mmi->ptMinTrackSize = { m_OriginalDialogSize.cx, m_OriginalDialogSize.cy };
+        mmi->ptMinTrackSize = { m_originalDialogSize.cx, m_originalDialogSize.cy };
     }
 }
 
@@ -177,9 +171,9 @@ void CLayout::OnGetMinMaxInfo(MINMAXINFO* mmi)
 
 void CLayout::CSizeGripper::Create(CWnd* parent, const CRect rc)
 {
-    VERIFY(CWnd::Create(AfxRegisterWndClass(0,
+    CWnd::Create(AfxRegisterWndClass(0,
         CDirStatApp::Get()->LoadStandardCursor(IDC_ARROW), nullptr, nullptr),
-        wds::strEmpty, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, rc, parent, IDC_SIZEGRIPPER));
+        wds::strEmpty, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, rc, parent, IDC_SIZEGRIPPER);
 }
 
 BEGIN_MESSAGE_MAP(CLayout::CSizeGripper, CWnd)
@@ -203,13 +197,13 @@ void CLayout::CSizeGripper::OnPaint()
     CRect rc;
     GetClientRect(rc);
 
-    ASSERT(rc.Width() == m_Width);
-    ASSERT(rc.Height() == m_Width);
+    ASSERT(rc.Width() == m_width);
+    ASSERT(rc.Height() == m_width);
 
     // Draw three diagonal shadow lines
     for (int offset : {1, 5, 9})
     {
-        DrawShadowLine(&dc, { offset, m_Width }, { m_Width, offset });
+        DrawShadowLine(&dc, { offset, m_width }, { m_width, offset });
     }
 }
 
@@ -227,7 +221,7 @@ void CLayout::CSizeGripper::DrawShadowLine(CDC* pdc, CPoint start, CPoint end)
     CPen darkPen(PS_SOLID, 1, DarkMode::WdsSysColor(COLOR_3DSHADOW));
     const CSelectObject sopen(pdc, &darkPen);
 
-    for (int i = 1; i <= 2; ++i)
+    for (const int i : std::views::iota(1, 3))
     {
         pdc->MoveTo(start.x + i, start.y + i);
         pdc->LineTo(end.x + i, end.y + i);
@@ -237,23 +231,23 @@ void CLayout::CSizeGripper::DrawShadowLine(CDC* pdc, CPoint start, CPoint end)
 LRESULT CLayout::CSizeGripper::OnNcHitTest(CPoint point)
 {
     ScreenToClient(&point);
-    return (point.x + point.y >= m_Width) ? HTBOTTOMRIGHT : 0;
+    return (point.x + point.y >= m_width) ? HTBOTTOMRIGHT : 0;
 }
 
 CLayout::CPositioner::CPositioner(const int nNumWindows)
-    : m_Wdp(BeginDeferWindowPos(nNumWindows))
+    : m_wdp(BeginDeferWindowPos(nNumWindows))
 {
 }
 
 CLayout::CPositioner::~CPositioner()
 {
-    if (m_Wdp != nullptr)
+    if (m_wdp != nullptr)
     {
-        EndDeferWindowPos(m_Wdp);
+        EndDeferWindowPos(m_wdp);
     }
 }
 
 void CLayout::CPositioner::SetWindowPos(HWND hWnd, const int x, const int y, const int cx, const int cy, const UINT uFlags)
 {
-    m_Wdp = DeferWindowPos(m_Wdp, hWnd, nullptr, x, y, cx, cy, uFlags | SWP_NOZORDER);
+    m_wdp = DeferWindowPos(m_wdp, hWnd, nullptr, x, y, cx, cy, uFlags | SWP_NOZORDER);
 }

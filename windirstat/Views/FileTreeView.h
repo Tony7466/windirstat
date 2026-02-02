@@ -17,8 +17,8 @@
 
 #pragma once
 
+#include "pch.h"
 #include "FileTreeControl.h"
-#include "DirStatDoc.h"
 
 //
 // CFileTreeView. The upper left view, which consists of the TreeList.
@@ -35,13 +35,9 @@ protected:
 
 protected:
     void OnDraw(CDC* pDC) override;
-    CDirStatDoc* GetDocument() const
-    {
-        return reinterpret_cast<CDirStatDoc*>(m_pDocument);
-    }
     void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint) override;
 
-    CFileTreeControl m_Control;
+    CFileTreeControl m_control;
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnSize(UINT nType, int cx, int cy);

@@ -17,8 +17,7 @@
 
 #pragma once
 
-#include "stdafx.h"
-#include "resource.h"
+#include "pch.h"
 
 //
 // CProgressDlg - Modal progress dialog for long-running operations
@@ -29,11 +28,16 @@ class CProgressDlg final : public CDialogEx
     DECLARE_DYNAMIC(CProgressDlg)
 
 public:
-    CProgressDlg(size_t total, bool noCancel, CWnd* pParent, std::function<void(std::atomic<bool>&, std::atomic<size_t>&)> task);
+    CProgressDlg(size_t total, bool noCancel, CWnd* pParent, std::function<void(CProgressDlg*)> task);
     ~CProgressDlg() override = default;
 
     INT_PTR DoModal() override;
-    bool WasCancelled() const { return m_Cancelled; }
+    bool WasCancelled() const noexcept { return m_cancelled; }
+
+    // Methods for task lambda to interact with the dialog
+    bool IsCancelled() const noexcept { return m_cancelRequested.load(); }
+    size_t Increment() noexcept { return ++m_current; }
+    size_t GetTotal() const noexcept { return m_total; }
 
 protected:
     enum : std::uint8_t { IDD = IDD_PROGRESS };
@@ -47,23 +51,22 @@ protected:
     afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 
 private:
-    void UpdateProgress();
     void StartWorkerThread();
 
-    std::wstring m_Message;
-    std::function<void(std::atomic<bool>&, std::atomic<size_t>&)> m_Task;
+    std::wstring m_message;
+    std::function<void(CProgressDlg*)> m_task;
     
-    CStatic m_MessageCtrl;
-    CProgressCtrl m_ProgressCtrl;
-    CButton m_CancelButton;
+    CStatic m_messageCtrl;
+    CProgressCtrl m_progressCtrl;
+    CButton m_cancelButton;
 
-    std::atomic<bool> m_CancelRequested = false;
-    std::atomic<size_t> m_Current = 0;
-    size_t m_Total = 0;
-    bool m_Cancelled = false;
-    bool m_NoCancel = false;
+    std::atomic<bool> m_cancelRequested = false;
+    std::atomic<size_t> m_current = 0;
+    const size_t m_total = 0;
+    bool m_cancelled = false;
+    const bool m_noCancel = false;
 
-    std::thread* m_WorkerThread{ nullptr };
+    std::optional<std::jthread> m_workerThread;
     static constexpr UINT_PTR TIMER_ID = 1;
-    static constexpr UINT TIMER_INTERVAL = 100; // Update every 100ms
+    static constexpr UINT TIMER_INTERVAL = 50; // Update every 100ms
 };

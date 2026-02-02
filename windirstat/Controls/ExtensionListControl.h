@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "DirStatDoc.h"
-
 class CExtensionView;
 
 //
@@ -50,7 +48,7 @@ protected:
 
         std::wstring GetExtension() const;
         HICON GetIcon() override;
-        int Compare(const CSortingListItem* baseOther, int subitem) const override;
+        int Compare(const COwnerDrawnListItem* baseOther, int subitem) const override;
 
     private:
         void DrawColor(CDC* pdc, CRect rc, UINT state, int* width) const;
@@ -60,13 +58,13 @@ protected:
 
         double GetBytesFraction() const;
 
-        std::wstring m_Extension;
-        std::wstring m_Description;
-        CExtensionListControl* m_List;
-        HICON m_Icon = nullptr;
-        ULONGLONG m_Bytes = 0;
-        ULONGLONG m_Files = 0;
-        COLORREF m_Color = 0;
+        std::wstring m_extension;
+        std::wstring m_description;
+        CExtensionListControl* m_driveList;
+        HICON m_icon = nullptr;
+        ULONGLONG m_bytes = 0;
+        ULONGLONG m_files = 0;
+        COLORREF m_color = 0;
     };
 
 public:
@@ -82,13 +80,15 @@ public:
 protected:
     CListItem* GetListItem(int i) const;
 
-    CExtensionView* m_ExtensionView;
-    ULONGLONG m_RootSize = 0;
+    CBitmap m_searchBitmap;
+    CExtensionView* m_extensionView;
+    ULONGLONG m_rootSize = 0;
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnLvnDeleteItem(NMHDR* pNMHDR, LRESULT* pResult);
-    afx_msg void MeasureItem(LPMEASUREITEMSTRUCT mis);
     afx_msg void OnSetFocus(CWnd* pOldWnd);
     afx_msg void OnLvnItemChanged(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+    afx_msg void OnContextMenu(CWnd* pWnd, CPoint point);
+    afx_msg void OnSearchExtension();
 };

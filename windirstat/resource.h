@@ -7,7 +7,6 @@
 #define IDD_PAGE_FILTERING              102
 #define IDD_SELECTDRIVES                103
 #define IDD_MESSAGEBOX                  105
-#define IDD_MODALAPISHUTTLE             106
 #define IDD_PAGE_CLEANUPS               107
 #define IDD_PAGE_TREELIST               108
 #define IDD_PAGE_TREEMAP                109
@@ -19,8 +18,7 @@
 #define IDR_POPUP_TREE                  129
 #define IDR_POPUP_MAP                   130
 #define IDR_LICENSE                     131
-#define IDB_NODES                       200
-#define IDB_NODES_INVERT                201
+#define IDR_LANGS                       132
 #define IDB_FILTER                      202
 #define IDB_FILE_SELECT                 203
 #define IDB_SEARCH                      204
@@ -39,11 +37,6 @@
 #define IDB_SCAN_RESUME                 217
 #define IDB_CLEANUP_EXPLORER_SELECT     218
 #define IDB_CLEANUP_OPEN_SELECTED       219
-#define IDI_JUNCTION                    300
-#define IDI_UNKNOWN                     301
-#define IDI_JUNCTION_PROTECTED          302
-#define IDI_FREE_SPACE                  303
-#define IDI_EMPTY                       304
 #define IDC_RADIO_TARGET_DRIVES_ALL     1000
 #define IDC_RADIO_TARGET_DRIVES_SUBSET  1001
 #define IDC_RADIO_TARGET_FOLDER         1002
@@ -153,9 +146,11 @@
 #define IDC_PROGRESS_MESSAGE            1110
 #define IDC_PROGRESS_BAR                1111
 #define IDC_ELEVATION_PROMPT            1112
-#define IDC_FAST_SCAN_PROMPT            1113
 #define IDC_CLOUD_LINKS_WARNING         1114
 #define IDC_AUTO_ELEVATE                1115
+#define IDC_PROCESS_HARDLINKS           1116
+#define IDC_CONTEXT_MENU                1117
+#define IDC_SHOW_MICROSOFT_PROGRESS     1118
 #define ID_WDS_CONTROL                  4711
 #define ID_CLEANUP_EXPLORER_SELECT      32768
 #define ID_TREEMAP_ZOOMIN               32769
@@ -211,7 +206,7 @@
 #define ID_CLEANUP_REMOVE_ROAMING       32819
 #define ID_CLEANUP_OPEN_IN_PWSH         32820
 #define ID_INDICATOR_DISK               32821
-#define ID_INDICATOR_MEM                32822
+#define ID_INDICATOR_RAM                32822
 #define ID_INDICATOR_IDLE               32823
 #define ID_CLEANUP_EMPTY_FOLDER         32824
 #define ID_CLEANUP_HIBERNATE            32825
@@ -225,6 +220,12 @@
 #define ID_CLEANUP_REMOVE_SHADOW        32834
 #define ID_CLEANUP_DISM_ANALYZE         32835
 #define ID_SAVE_DUPLICATES              32836
+#define ID_CLEANUP_REMOVE_PROGRAMS      32837
+#define ID_CLEANUP_MOVE_TO              32838
+#define ID_CLEANUP_OPTIMIZE_VHD         32839
+#define ID_EXTLIST_SEARCH_EXTENSION     32840
+#define ID_INDICATOR_SIZE               32841
+#define ID_CLEANUP_REMOVE_MOTW          32842
 #define IDS_AUTHOR_EMAIL                57345
 #define IDS_URL_WEBSITE                 57346
 #define IDS_URL_HELP                    57347
@@ -238,9 +239,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        305
-#define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1116
-#define _APS_NEXT_SYMED_VALUE           109
+#define _APS_NEXT_RESOURCE_VALUE        306
+#define _APS_NEXT_COMMAND_VALUE         32843
+#define _APS_NEXT_CONTROL_VALUE         1119
+#define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

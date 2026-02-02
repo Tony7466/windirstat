@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "stdafx.h"
+#include "pch.h"
 
 class DarkMode final
 {
@@ -29,6 +29,7 @@ public:
 
     // Check if dark mode is supported on this system
     static bool IsDarkModeActive() noexcept;
+    static bool EnhancedDarkModeSupport();
     static COLORREF WdsSysColor(DWORD index);
 
     // Menu rendering functions
@@ -43,12 +44,11 @@ public:
     static HBRUSH OnCtlColor(CDC* pDC, UINT nCtlColor);
     static void SetAppDarkMode() noexcept;
     static void SetupGlobalColors() noexcept;
-    static HICON LightenIcon(HICON hIcon, bool invert = false);
     static void LightenBitmap(CBitmap* pBitmap, bool invert = false);
+    static void DrawFocusRect(CDC* pdc, const CRect& rc);
 
 private:
-
-    static bool _darkModeEnabled;
+    static bool s_darkModeEnabled;
 };
 
 //
@@ -57,16 +57,17 @@ private:
 class CTabCtrlHelper final : public CMFCTabCtrl
 {
 public:
-    static void SetupTabControl(CMFCTabCtrl& tab)
+    static void SetupTabControl(CMFCTabCtrl& tab, Style lightStyle = STYLE_3D_VS2005)
     {
         auto& helper = reinterpret_cast<CTabCtrlHelper&>(tab);
 
-        helper.ModifyTabStyle(DarkMode::IsDarkModeActive() ? STYLE_FLAT : STYLE_3D_VS2005);
+        helper.ModifyTabStyle(DarkMode::IsDarkModeActive() ? STYLE_FLAT : lightStyle);
         helper.EnableTabSwap(FALSE);
-        helper.SetDrawFrame(FALSE);
+        helper.SetDrawFrame(TRUE);
         helper.SetScrollButtons();
+        helper.SetActiveTabBoldFont();
 
-        // Forcibly hide tabs
+        // Forcibly hide scroll controls
         if (IsWindow(helper.m_btnScrollFirst)) helper.m_btnScrollFirst.ShowWindow(SW_HIDE);
         if (IsWindow(helper.m_btnScrollLast)) helper.m_btnScrollLast.ShowWindow(SW_HIDE);
         if (IsWindow(helper.m_btnScrollLeft)) helper.m_btnScrollLeft.ShowWindow(SW_HIDE);
@@ -85,7 +86,7 @@ public:
 //
 // CDarkModeVisualManager. A visual manager tweak for dark mode support
 //
-class CDarkModeVisualManager final : public CMFCVisualManagerWindows7
+class CDarkModeVisualManager final : public CMFCVisualManagerWindows
 {
     DECLARE_DYNCREATE(CDarkModeVisualManager)
 
@@ -97,5 +98,6 @@ protected:
     void OnFillBarBackground(CDC* pDC, CBasePane* pBar, CRect rectClient, CRect rectClip, BOOL bNCArea) override;
     void OnDrawSeparator(CDC* pDC, CBasePane* pBar, CRect rect, BOOL bIsHoriz) override;
     void OnDrawStatusBarPaneBorder(CDC* pDC, CMFCStatusBar* pBar, CRect rectPane, UINT uiID, UINT nStyle) override;
+    void OnFillSplitterBackground(CDC* pDC, CSplitterWndEx* pSplitterWnd, CRect rect) override;
     void OnUpdateSystemColors() override;
 };

@@ -17,41 +17,38 @@
 
 #pragma once
 
-#include "stdafx.h"
-#include "LangStrings.h"
-#include "Options.h"
+#include "pch.h"
 
 class Localization final
 {
-    static bool CrackStrings(std::basic_istream<char>& stream, unsigned int streamSize);
+    static bool CrackStrings(const std::wstring& sFileData, const std::wstring& sPrefix = {});
     static void SearchReplace(std::wstring& input, const std::wstring_view& search, const std::wstring_view& replace);
-    static void UpdateWindowText(HWND hwnd);
+    static void UpdateWindowText(CWnd& wnd);
 
 public:
-    static constexpr auto MAX_VALUE_SIZE = 1024;
-    static constexpr auto LANG_RESOURCE_TYPE = L"RT_LANG";
-    static std::unordered_map<std::wstring, std::wstring> m_Map;
+    static std::unordered_map<std::wstring, std::wstring> m_map;
 
     static bool Contains(const std::wstring_view& name)
     {
-        ASSERT(m_Map.contains(std::wstring(name)));
-        return m_Map.contains(std::wstring(name));
+        ASSERT(m_map.contains(std::wstring(name)));
+        return m_map.contains(std::wstring(name));
     }
 
     static std::wstring Lookup(const std::wstring_view& name)
     {
-        return Contains(name) ? m_Map[std::wstring(name)] : std::wstring();
+        const auto it = m_map.find(std::wstring(name));
+        return it != m_map.end() ? it->second : std::wstring();
     }
 
     static std::wstring LookupNeutral(const UINT res)
     {
         CStringW name;
-        (void) name.LoadStringW(nullptr, res, MAKELANGID(LANG_NEUTRAL,SUBLANG_NEUTRAL));
+        (void) name.LoadString(AfxGetResourceHandle(), res, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL));
         return name.GetString();
     }
 
     template <typename... Args>
-    static std::wstring Format(std::wstring_view format, const Args&... args)
+    static std::wstring Format(const std::wstring_view format, const Args&... args)
     {
         const auto & formatString = Lookup(format);
         return std::vformat(formatString, std::make_wformat_args(args...));
@@ -59,9 +56,10 @@ public:
 
     static void UpdateMenu(CMenu& menu);
     static void UpdateTabControl(CMFCTabCtrl& tab);
-    static void UpdateDialogs(const CWnd& wnd);
+    static void UpdateDialogs(CWnd& wnd);
     static bool LoadExternalLanguage(LCTYPE lcttype, LCID lcid);
     static bool LoadFile(const std::wstring& file);
     static bool LoadResource(WORD language);
-    static std::vector<LANGID> GetLanguageList();
+    static std::wstring ConvertToWideString(const std::string_view& sv);
+    static std::set<LANGID> GetLanguageList();
 };

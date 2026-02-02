@@ -17,12 +17,8 @@
 
 #pragma once
 
-#include "stdafx.h"
-#include "resource.h"
-#include "Langs.h"
+#include "pch.h"
 #include "IconHandler.h"
-#include "Constants.h"
-#include "Tracer.h"
 
 class CMainFrame;
 class CDirStatApp;
@@ -36,6 +32,8 @@ CIconHandler* GetIconHandler();
 //
 class CDirStatApp final : public CWinAppEx
 {
+    friend class CWinDirStatCommandLineInfo;
+
 public:
 
     CDirStatApp();
@@ -57,23 +55,29 @@ public:
     static void LaunchHelp();
     void RestartApplication(bool resetPreferences = false);
 
+    static void LegacyUninstall();
     static std::tuple<ULONGLONG, ULONGLONG> GetFreeDiskSpace(const std::wstring& pszRootPath);
-    static CDirStatApp* Get() { return &_singleton; }
+    static CDirStatApp* Get() { return &s_singleton; }
+    std::wstring GetSaveToCsvPath() const { return m_saveToCsvPath; }
+    std::wstring GetSaveDupesToCsvPath() const { return m_saveDupesToCsvPath; }
 
 protected:
 
     // Get the alternative color from Explorer configuration
     COLORREF GetAlternativeColor(COLORREF clrDefault, const std::wstring& which) const;
 
-    CSingleDocTemplate* m_PDocTemplate{nullptr}; // MFC voodoo.
+    CSingleDocTemplate* m_pDocTemplate{nullptr}; // MFC voodoo.
 
-    CIconHandler m_IconList;          // Our central icon list
-    COLORREF m_AltColor;              // Coloring of compressed items
-    COLORREF m_AltEncryptionColor;    // Coloring of encrypted items
-    static CDirStatApp _singleton;    // Singleton application instance
+    CIconHandler m_iconList;           // Central icon list
+    COLORREF m_altColor;               // Coloring of compressed items
+    COLORREF m_altEncryptionColor;     // Coloring of encrypted items
+    std::wstring m_loadFromCsvPath;    // Path to load csv file from
+    std::wstring m_saveToCsvPath;      // Path to save csv file to
+    std::wstring m_saveDupesToCsvPath; // Path to save duplicates csv file to
+    static CDirStatApp s_singleton;    // Singleton application instance
 #ifdef _DEBUG
-    CAutoPtr<CWDSTracerConsole> m_VtraceConsole;
-#endif // VTRACE_TO_CONSOLE
+    CWDSTracerConsole m_vtraceConsole;
+#endif
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnFileOpen();

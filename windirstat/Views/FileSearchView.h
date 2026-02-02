@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "pch.h"
 #include "FileSearchControl.h"
 
 //
@@ -33,13 +34,9 @@ protected:
 
 protected:
     void OnDraw(CDC* pDC) override;
-    CDirStatDoc* GetDocument() const
-    {
-        return reinterpret_cast<CDirStatDoc*>(m_pDocument);
-    }
     void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint) override;
 
-    CFileSearchControl m_Control;
+    CFileSearchControl m_control;
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnSize(UINT nType, int cx, int cy);

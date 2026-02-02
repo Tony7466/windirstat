@@ -17,36 +17,30 @@
 
 #pragma once
 
-#include "stdafx.h"
-#include "Item.h"
+#include "pch.h"
 
 class Finder
 {
 protected:
 
-    static constexpr std::wstring_view m_Dos = L"\\??\\";
-    static constexpr std::wstring_view m_DosUNC = L"\\??\\UNC\\";
-    static constexpr std::wstring_view m_Long = L"\\\\?\\";
-    static constexpr std::wstring_view m_LongUNC = L"\\\\?\\UNC\\";
+    static constexpr std::wstring_view s_dosPath = L"\\??\\";
+    static constexpr std::wstring_view s_dosUNCPath = L"\\??\\UNC\\";
+    static constexpr std::wstring_view s_longPath = L"\\\\?\\";
+    static constexpr std::wstring_view s_longUNCPath = L"\\\\?\\UNC\\";
 
 public:
 
     virtual bool FindNext() = 0;
     virtual bool FindFile(const CItem* item) = 0;
-    virtual bool IsDots() const = 0;
     virtual inline DWORD GetAttributes() const = 0;
     virtual inline ULONGLONG GetFileSizePhysical() const = 0;
     virtual inline ULONGLONG GetFileSizeLogical() const = 0;
     virtual inline FILETIME GetLastWriteTime() const = 0;
     virtual std::wstring GetFilePath() const = 0;
     virtual std::wstring GetFileName() const = 0;
-    virtual ULONG GetIndex() const { return 0; }
+    virtual inline ULONGLONG GetIndex() const = 0;
     virtual DWORD GetReparseTag() const = 0;
-
-    bool IsReparsePoint() const
-    {
-        return (GetAttributes() & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
-    }
+    virtual bool IsReserved() const = 0;
 
     bool IsDirectory() const
     {
@@ -77,9 +71,9 @@ public:
 
     static std::wstring MakeLongPathCompatible(const std::wstring& path)
     {
-        if (path.find(L":\\", 1) == 1) return m_Long.data() + path;
+        if (path.find(L":\\", 1) == 1) return s_longPath.data() + path;
         if (path.starts_with(L"\\\\?")) return path;
-        if (path.starts_with(L"\\\\")) return m_LongUNC.data() + path.substr(2);
+        if (path.starts_with(L"\\\\")) return s_longUNCPath.data() + path.substr(2);
         return path;
     }
 
@@ -100,7 +94,7 @@ public:
         {
             const auto volumeIdentifier = LR"(\??\Volume)";
             const auto path = ByteOffset<WCHAR>(reparseBuffer.PathBuffer, reparseBuffer.SubstituteNameOffset);
-            if (_wcsnicmp(path, volumeIdentifier, min(reparseBuffer.SubstituteNameLength, wcslen(volumeIdentifier))) == 0)
+            if (_wcsnicmp(path, volumeIdentifier, min(reparseBuffer.SubstituteNameLength / sizeof(WCHAR), wcslen(volumeIdentifier))) == 0)
             {
                 return true;
             }

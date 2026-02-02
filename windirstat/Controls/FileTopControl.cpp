@@ -15,41 +15,33 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#include "stdafx.h"
-#include "WinDirStat.h"
-#include "DirStatDoc.h"
+#include "pch.h"
 #include "ItemTop.h"
-#include "MainFrame.h"
 #include "FileTopControl.h"
-#include "Localization.h"
 
-CFileTopControl::CFileTopControl() : CTreeListControl(20, COptions::TopViewColumnOrder.Ptr(), COptions::TopViewColumnWidths.Ptr())
+CFileTopControl::CFileTopControl() : CTreeListControl(COptions::TopViewColumnOrder.Ptr(), COptions::TopViewColumnWidths.Ptr())
 {
-    m_Singleton = this;
+    m_singleton = this;
 }
 
 bool CFileTopControl::GetAscendingDefault(const int column)
 {
-    return column == COL_ITEMTOP_SIZE_PHYSICAL ||
-        column == COL_ITEMTOP_SIZE_LOGICAL ||
-        column == COL_ITEMTOP_LAST_CHANGE;
+    return column == COL_ITEMSEARCH_NAME || column == COL_ITEMSEARCH_LAST_CHANGE;
 }
 
 BEGIN_MESSAGE_MAP(CFileTopControl, CTreeListControl)
     ON_WM_SETFOCUS()
     ON_WM_KEYDOWN()
-    ON_NOTIFY_REFLECT_EX(LVN_DELETEALLITEMS, OnDeleteAllItems)
 END_MESSAGE_MAP()
 
-CFileTopControl* CFileTopControl::m_Singleton = nullptr;
+CFileTopControl* CFileTopControl::m_singleton = nullptr;
 
 void CFileTopControl::ProcessTop(CItem * item)
 {
     // Do not process if we are not tracking large files
     if (COptions::LargeFileCount == 0) return;
 
-    std::scoped_lock guard(m_SizeMutex);
-    m_QueuedSet.emplace_back(item);
+    m_queuedSet.push(item);
 }
 
 void CFileTopControl::SortItems()
@@ -59,57 +51,109 @@ void CFileTopControl::SortItems()
     // Verify at least root exists
     if (GetItemCount() == 0) return;
 
-    // Quickly copy the items to a vector to free mutex
-    m_SizeMutex.lock();
-    std::vector<CItem*> queuedItems = m_QueuedSet;
-    m_QueuedSet.clear();
-    m_SizeMutex.unlock();
-
-    // Insert into map
-    m_SizeMap.insert(queuedItems.begin(), queuedItems.end());
-
-    SetRedraw(FALSE);
-    const auto root = reinterpret_cast<CItemTop*>(GetItem(0));
-    auto itemTrackerCopy = std::unordered_map(m_ItemTracker);
-    for (const auto& largeItem : m_SizeMap | std::views::take(COptions::LargeFileCount.Obj()))
+    // Record size and complete resort if top N changed
+    const auto topN = static_cast<size_t>(COptions::LargeFileCount.Obj());
+    if (topN != m_previousTopN)
     {
-        if (m_ItemTracker.contains(largeItem))
+        std::ranges::sort(m_sizeMap, CompareBySize);
+        m_previousTopN = topN;
+        m_needsResort = true;
+    }
+
+    // Process queued items - only mark for resort if item could affect top N
+    CItem* newItem = nullptr;
+    while (m_queuedSet.pop(newItem))
+    {
+        // Check if this item could affect the top N
+        if (m_sizeMap.size() < topN || newItem->GetSizeLogical() > m_topNMinSize)
+        {
+            m_needsResort = true;
+        }
+        m_sizeMap.push_back(newItem);
+    }
+
+    // Only sort the vector if we need to update the top N
+    if (!m_needsResort)
+    {
+        CTreeListControl::SortItems();
+        return;
+    }
+    
+    m_needsResort = false;
+    const auto sortEnd = m_sizeMap.size() <= topN ? m_sizeMap.end()
+        : m_sizeMap.begin() + topN;
+
+    // Partial sort to get top N items at the front
+    std::ranges::partial_sort(m_sizeMap, sortEnd, CompareBySize);
+
+    // Update minimum size in top N for future comparisons
+    if (m_sizeMap.size() >= topN)
+    {
+        m_topNMinSize = m_sizeMap[topN - 1]->GetSizeLogical();
+    }
+    else if (!m_sizeMap.empty())
+    {
+        m_topNMinSize = m_sizeMap.back()->GetSizeLogical();
+    }
+    else
+    {
+        m_topNMinSize = 0;
+    }
+
+    // Update visual item removals
+    auto itemTrackerCopy = std::unordered_map(m_itemTracker);
+    for (const auto& largeItem : m_sizeMap | std::views::take(topN))
+    {
+        if (m_itemTracker.contains(largeItem))
         {
             itemTrackerCopy.erase(largeItem);
             continue;
         }
         
         const auto itemTop = new CItemTop(largeItem);
-        root->AddTopItemChild(itemTop);
-        m_ItemTracker[largeItem] = itemTop;
+        m_rootItem->AddTopItemChild(itemTop);
+        m_itemTracker[largeItem] = itemTop;
     }
 
+    // Handle visual item additions
+    SetRedraw(FALSE);
     for (const auto& itemTop : itemTrackerCopy | std::views::values)
     {
-        m_ItemTracker.erase(reinterpret_cast<CItem*>(itemTop->GetLinkedItem()));
-        root->RemoveTopItemChild(itemTop);
+        m_itemTracker.erase(itemTop->GetLinkedItem());
+        m_rootItem->RemoveTopItemChild(itemTop);
     }
     SetRedraw(TRUE);
-
-    CSortingListControl::SortItems();
+    
+    CTreeListControl::SortItems();   
 }
 
 void CFileTopControl::RemoveItem(CItem* item)
 {
+    // Create list of all items to remove
+    std::unordered_set<CItem*> toRemove;
     std::stack<CItem*> queue({ item });
     while (!queue.empty())
     {
-        const auto& qitem = queue.top();
+        const auto qitem = queue.top();
         queue.pop();
-        if (qitem->IsType(IT_FILE))
+
+        if (qitem->IsTypeOrFlag(IT_FILE))
         {
-            m_SizeMap.erase(qitem);
+            toRemove.emplace(qitem);
         }
         else if (!qitem->IsLeaf()) for (const auto& child : qitem->GetChildren())
         {
-            queue.push(child);
+            if (child->IsTypeOrFlag(IT_FILE)) toRemove.emplace(child);
+            else queue.push(child);
         }
     }
+
+    // Remove items in bulk
+    m_needsResort = true;
+    std::erase_if(m_sizeMap, [&](const auto& itemToRemove)
+    {
+        return toRemove.contains(itemToRemove);
+    });
 
     // Use the sort function to remove visual items
     CMainFrame::Get()->InvokeInMessageThread([&]
@@ -120,8 +164,8 @@ void CFileTopControl::RemoveItem(CItem* item)
 
 void CFileTopControl::OnItemDoubleClick(const int i)
 {
-    if (const auto item = reinterpret_cast<const CItem*>(GetItem(i)->GetLinkedItem());
-        item != nullptr && item->IsType(IT_FILE))
+    if (const auto item = GetItem(i)->GetLinkedItem();
+        item != nullptr && item->IsTypeOrFlag(IT_FILE))
     {
         CDirStatDoc::OpenItem(item);
     }
@@ -131,15 +175,19 @@ void CFileTopControl::OnItemDoubleClick(const int i)
     }
 }
 
-BOOL CFileTopControl::OnDeleteAllItems(NMHDR*, LRESULT* pResult)
+void CFileTopControl::AfterDeleteAllItems()
 {
     // Reset trackers
-    m_SizeMap.clear();
-    m_ItemTracker.clear();
+    m_sizeMap.clear();
+    m_itemTracker.clear();
+    m_topNMinSize = 0;
+    m_needsResort = true;
 
-    // Allow deletion to proceed
-    *pResult = FALSE;
-    return FALSE;
+    // Delete and recreate root item
+    delete m_rootItem;
+    m_rootItem = new CItemTop();
+    InsertItem(0, m_rootItem);
+    m_rootItem->SetExpanded(true);
 }
 
 void CFileTopControl::OnSetFocus(CWnd* pOldWnd)

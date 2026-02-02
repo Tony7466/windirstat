@@ -17,19 +17,20 @@
 
 #pragma once
 
+#include "pch.h"
 #include "OwnerDrawnListControl.h"
-#include "GlobalHelpers.h"
 #include "PacMan.h"
 
 class CFileTreeView;
 class CTreeListItem;
 class CTreeListControl;
+class CItem;
 
 //
 // CTreeListItem. An item in the CTreeListControl. (CItem is derived from CTreeListItem.)
 // In order to save memory, once the item is actually inserted in the List,
-// we allocate the VISIBLEINFO structure (m_VisualInfo).
-// m_VisualInfo is freed as soon as the item is removed from the List.
+// we allocate the VISIBLEINFO structure (m_visualInfo).
+// m_visualInfo is freed as soon as the item is removed from the List.
 //
 class CTreeListItem : public COwnerDrawnListItem
 {
@@ -55,21 +56,20 @@ public:
 
     bool DrawSubItem(int subitem, CDC* pdc, CRect rc, UINT state, int* width, int* focusLeft) override;
     std::wstring GetText(int subitem) const override;
-    HICON GetIcon() override { return m_VisualInfo->icon; }
-    int Compare(const CSortingListItem* baseOther, int subitem) const override;
+    HICON GetIcon() override { return m_visualInfo->icon; }
+    int Compare(const COwnerDrawnListItem* baseOther, int subitem) const override;
     virtual CTreeListItem* GetTreeListChild(int i) const = 0;
     virtual int GetTreeListChildCount() const = 0;
-    virtual CTreeListItem* GetLinkedItem() { return this; }
+    virtual CItem* GetLinkedItem() { return reinterpret_cast<CItem*>(this); }
 
     void DrawPacman(CDC* pdc, const CRect& rc) const;
     CTreeListItem* GetParent() const;
     void SetParent(CTreeListItem* parent);
     bool IsAncestorOf(const CTreeListItem* item) const;
-    bool HasMoreSiblings() const;
     bool HasChildren() const;
     bool IsExpanded() const;
     void SetExpanded(bool expanded = true) const;
-    bool IsVisible() const { return m_VisualInfo != nullptr; }
+    bool IsVisible() const { return m_visualInfo != nullptr; }
     void SetVisible(CTreeListControl * control, bool visible = true);
     unsigned char GetIndent() const;
     void SetIndent(unsigned char indent) const;
@@ -84,10 +84,10 @@ public:
     void DrivePacman() const;
 
 protected:
-    std::unique_ptr<VISIBLEINFO> m_VisualInfo;
+    std::unique_ptr<VISIBLEINFO> m_visualInfo;
 
 private:
-    CTreeListItem* m_Parent = nullptr;
+    CTreeListItem* m_parent = nullptr;
 };
 
 //
@@ -97,13 +97,14 @@ class CTreeListControl : public COwnerDrawnListControl
 {
     DECLARE_DYNAMIC(CTreeListControl)
 
-    CTreeListControl(int rowHeight = -1, std::vector<int>* columnOrder = {}, std::vector<int>* columnWidths = {});
+    CTreeListControl(std::vector<int>* columnOrder = {}, std::vector<int>* columnWidths = {});
     ~CTreeListControl() override = default;
     virtual BOOL CreateExtended(DWORD dwExStyle, DWORD dwStyle, const RECT& rect, CWnd* pParentWnd, UINT nID);
     void SysColorChanged() override;
-    virtual void SetRootItem(CTreeListItem* root);
+    virtual void SetRootItem(CTreeListItem* root = nullptr);
+    virtual void AfterDeleteAllItems() {}
     void OnChildAdded(const CTreeListItem* parent, CTreeListItem* child);
-    void OnChildRemoved(const CTreeListItem* parent, CTreeListItem* child);
+    void OnChildRemoved(const CTreeListItem* parent, const CTreeListItem* child);
     void OnRemovingAllChildren(const CTreeListItem* parent);
     CTreeListItem* GetItem(int i) const;
     bool IsItemSelected(const CTreeListItem* item) const;
@@ -126,7 +127,8 @@ class CTreeListControl : public COwnerDrawnListControl
         for (POSITION pos = GetFirstSelectedItemPosition(); pos != nullptr;)
         {
             const int i = GetNextSelectedItem(pos);
-            const auto item = reinterpret_cast<T*>(visual ? GetItem(i) : GetItem(i)->GetLinkedItem());
+            const auto item = visual ? reinterpret_cast<T*>(GetItem(i)) :
+                reinterpret_cast<T*>(GetItem(i)->GetLinkedItem());
             if (item != nullptr) array.push_back(item);
         }
         return array;
@@ -144,7 +146,6 @@ class CTreeListControl : public COwnerDrawnListControl
 
 protected:
     virtual void OnItemDoubleClick(int i);
-    void InitializeNodeBitmaps();
     void InsertItem(int i, CTreeListItem* item);
     void DeleteItem(int i);
     void CollapseItem(int i);
@@ -154,14 +155,11 @@ protected:
     //
     /////////////////////////////////////////////////////
 
-    CBitmap m_BmNodes0;                // The bitmaps needed to draw the treecontrol-like branches
-    CBitmap m_BmNodes1;                // The same bitmaps with stripe-background color
-    int m_LButtonDownItem = -1;        // Set in OnLButtonDown(). -1 if not item hit.
-    bool m_LButtonDownOnPlusMinusRect = false; // Set in OnLButtonDown(). True, if plus-minus-rect hit.
+    int m_lButtonDownItem = -1;        // Set in OnLButtonDown(). -1 if not item hit.
+    bool m_lButtonDownOnPlusMinusRect = false; // Set in OnLButtonDown(). True, if plus-minus-rect hit.
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnContextMenu(CWnd* /*pWnd*/, CPoint /*point*/);
-    afx_msg void MeasureItem(LPMEASUREITEMSTRUCT mis);
     afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
     afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
     afx_msg void OnLvnItemChangingList(NMHDR* pNMHDR, LRESULT* pResult);

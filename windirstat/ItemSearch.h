@@ -17,8 +17,7 @@
 
 #pragma once
 
-#include "stdafx.h"
-#include "Item.h"
+#include "pch.h"
 
 // Columns
 using ITEMSEARCHCOLUMNS = enum : std::uint8_t
@@ -31,9 +30,10 @@ using ITEMSEARCHCOLUMNS = enum : std::uint8_t
 
 class CItemSearch final : public CTreeListItem
 {
-    std::shared_mutex m_Protect;
-    std::vector<CItemSearch*> m_Children;
-    CItem* m_Item = nullptr;
+    std::shared_mutex m_protect;
+    std::vector<CItemSearch*> m_children;
+    CItem* m_item = nullptr;
+    bool m_limitExceeded = false;
 
 public:
     CItemSearch(const CItemSearch&) = delete;
@@ -45,7 +45,7 @@ public:
     ~CItemSearch() override;
 
     // Translation map for leveraging Item routines
-    static const std::unordered_map<uint8_t, uint8_t> columnMap;
+    static const std::unordered_map<uint8_t, uint8_t> s_columnMap;
 
     // CTreeListItem Interface
     bool DrawSubItem(int subitem, CDC* pdc, CRect rc, UINT state, int* width, int* focusLeft) override;
@@ -54,9 +54,10 @@ public:
     int GetTreeListChildCount() const override;
     CTreeListItem* GetTreeListChild(int i) const override;
     HICON GetIcon() override;
-    CTreeListItem* GetLinkedItem() override { return m_Item; }
+    CItem* GetLinkedItem() override { return m_item; }
 
     void AddSearchItemChild(CItemSearch* child);
     void RemoveSearchItemChild(CItemSearch* child);
-    void RemoveSearchItemResults();
+    void SetLimitExceeded(bool exceeded) { m_limitExceeded = exceeded; }
+    bool GetLimitExceeded() const { return m_limitExceeded; }
 };

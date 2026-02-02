@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Header Files">
@@ -40,84 +40,30 @@
     <Filter Include="Source Files\Pages">
       <UniqueIdentifier>{48734b53-64ee-4a01-9ed9-2a08de961821}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\Toolbar">
+      <UniqueIdentifier>{d78ee95b-5d90-4405-8f08-aad4cf4819c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Icon">
+      <UniqueIdentifier>{7e4f4843-62b8-45f8-af9b-7be2708530d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\License">
+      <UniqueIdentifier>{669943eb-0d29-4c39-bf02-fdd365d0b07e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="res\IDB_NODES.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </None>
-    <None Include="res\license.txt">
-      <Filter>Resource Files\Resources</Filter>
-    </None>
-    <None Include="res\IDR_MAINFRAME.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </None>
     <None Include="res\windirstat.manifest">
       <Filter>Resource Files\Resources</Filter>
     </None>
     <None Include="res\windirstat.rc2">
       <Filter>Resource Files\Resources</Filter>
     </None>
-    <None Include="res\langs\lang_cs.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_de.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_et.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_en.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_es.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_fi.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_fr.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_hu.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_it.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_nl.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_no.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_pl.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_pt.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_ru.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_zh.bin">
-      <Filter>Resource Files\Languages</Filter>
+    <None Include="res\license.txt">
+      <Filter>Resource Files\License</Filter>
     </None>
     <None Include="res\license.bin">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\License</Filter>
     </None>
-    <None Include="res\langs\lang_ko.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_hk.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_sv.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_ja.bin">
-      <Filter>Resource Files\Languages</Filter>
-    </None>
-    <None Include="res\langs\lang_tr.bin">
+    <None Include="res\lang_combined.bin">
       <Filter>Resource Files\Languages</Filter>
     </None>
   </ItemGroup>
@@ -126,9 +72,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FinderBasic.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GlobalHelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Item.h">
@@ -146,7 +89,7 @@
     <ClInclude Include="SelectObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="stdafx.h">
+    <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="WinDirStat.h">
@@ -164,14 +107,8 @@
     <ClInclude Include="Localization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="langs.h">
-      <Filter>Resource Files\Languages</Filter>
-    </ClInclude>
     <ClInclude Include="CsvLoader.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="resource.h">
-      <Filter>Resource Files</Filter>
     </ClInclude>
     <ClInclude Include="ItemDupe.h">
       <Filter>Header Files</Filter>
@@ -212,9 +149,6 @@
     <ClInclude Include="Pages\PageGeneral.h">
       <Filter>Header Files\Pages</Filter>
     </ClInclude>
-    <ClInclude Include="Pages\PageGeneral.h">
-      <Filter>Header Files\Pages</Filter>
-    </ClInclude>
     <ClInclude Include="Views\ExtensionView.h">
       <Filter>Header Files\Views</Filter>
     </ClInclude>
@@ -237,9 +171,6 @@
       <Filter>Header Files\Controls</Filter>
     </ClInclude>
     <ClInclude Include="Controls\TreeListControl.h">
-      <Filter>Header Files\Controls</Filter>
-    </ClInclude>
-    <ClInclude Include="Controls\SortingListControl.h">
       <Filter>Header Files\Controls</Filter>
     </ClInclude>
     <ClInclude Include="Controls\PacMan.h">
@@ -305,12 +236,21 @@
     <ClInclude Include="Pages\PagePrompts.h">
       <Filter>Header Files\Pages</Filter>
     </ClInclude>
+    <ClInclude Include="Controls\DrawTextCache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HelpersInterface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HelpersTasks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Resource Files\Resources</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DirStatDoc.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="GlobalHelpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Item.cpp">
@@ -325,7 +265,7 @@
     <ClCompile Include="Options.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="stdafx.cpp">
+    <ClCompile Include="pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="WinDirStat.cpp">
@@ -341,9 +281,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Localization.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CsvLoader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ItemDupe.cpp">
@@ -400,9 +337,6 @@
     <ClCompile Include="Controls\TreeListControl.cpp">
       <Filter>Source Files\Controls</Filter>
     </ClCompile>
-    <ClCompile Include="Controls\SortingListControl.cpp">
-      <Filter>Source Files\Controls</Filter>
-    </ClCompile>
     <ClCompile Include="Controls\PacMan.cpp">
       <Filter>Source Files\Controls</Filter>
     </ClCompile>
@@ -454,93 +388,84 @@
     <ClCompile Include="Pages\PagePrompts.cpp">
       <Filter>Source Files\Pages</Filter>
     </ClCompile>
+    <ClCompile Include="Controls\DrawTextCache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CsvLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="HelpersInterface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="HelpersTasks.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="windirstat.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
     <ResourceCompile Include="version.rc">
-      <Filter>Resource Files</Filter>
+      <Filter>Resource Files\Resources</Filter>
     </ResourceCompile>
-    <ResourceCompile Include="langs.rc">
-      <Filter>Resource Files\Languages</Filter>
+    <ResourceCompile Include="windirstat.rc">
+      <Filter>Resource Files\Resources</Filter>
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\toolbar\IDB_CLEANUP_DELETE.bmp">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
     <Image Include="res\toolbar\IDB_CLEANUP_DELETE_BIN.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_CLEANUP_PROPERTIES.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_EDIT_COPY_CLIPBOARD.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_FILE_SELECT.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_REFRESH_ALL.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_SCAN_SUSPEND.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_TREEMAP_ZOOMIN.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_TREEMAP_ZOOMOUT.bmp">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
     <Image Include="res\toolbar\IDB_CLEANUP_EXPLORER_SELECT.bmp">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
     <Image Include="res\toolbar\IDB_CLEANUP_OPEN_IN_CONSOLE.bmp">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
     <Image Include="res\toolbar\IDB_CLEANUP_OPEN_SELECTED.bmp">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
-    <Image Include="res\toolbar\IDB_HELP_MANUAL.bmp">
-      <Filter>Resource Files\Resources</Filter>
+    <Image Include="res\toolbar\IDB_CLEANUP_PROPERTIES.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
-    <Image Include="res\toolbar\IDB_REFRESH_SELECTED.bmp">
-      <Filter>Resource Files\Resources</Filter>
+    <Image Include="res\toolbar\IDB_EDIT_COPY_CLIPBOARD.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
-    <Image Include="res\toolbar\IDB_SCAN_RESUME.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\nodes\IDI_EMPTY.ico">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\nodes\IDI_FREE_SPACE.ico">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\nodes\IDI_JUNCTION.ico">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\nodes\IDI_JUNCTION_PROTECTED.ico">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\nodes\IDI_UNKNOWN.ico">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\toolbar\IDB_SCAN_STOP.bmp">
-      <Filter>Resource Files\Resources</Filter>
-    </Image>
-    <Image Include="res\WinDirStat.ico">
-      <Filter>Resource Files</Filter>
+    <Image Include="res\toolbar\IDB_FILE_SELECT.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
     <Image Include="res\toolbar\IDB_FILTER.bmp">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\toolbar\IDB_HELP_MANUAL.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\toolbar\IDB_REFRESH_ALL.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\toolbar\IDB_REFRESH_SELECTED.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\toolbar\IDB_SCAN_RESUME.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\toolbar\IDB_SCAN_STOP.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\toolbar\IDB_SCAN_SUSPEND.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
     <Image Include="res\toolbar\IDB_SEARCH.bmp">
-      <Filter>Resource Files\Resources</Filter>
+      <Filter>Resource Files\Toolbar</Filter>
     </Image>
-    <Image Include="res\IDB_NODES_INVERT.bmp">
-      <Filter>Resource Files\Resources</Filter>
+    <Image Include="res\toolbar\IDB_TREEMAP_ZOOMIN.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\toolbar\IDB_TREEMAP_ZOOMOUT.bmp">
+      <Filter>Resource Files\Toolbar</Filter>
+    </Image>
+    <Image Include="res\WinDirStat.ico">
+      <Filter>Resource Files\Icon</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
@@ -580,9 +505,6 @@
     <Text Include="res\langs\lang_nl.txt">
       <Filter>Resource Files\Languages</Filter>
     </Text>
-    <Text Include="res\langs\lang_cs.txt">
-      <Filter>Resource Files\Languages</Filter>
-    </Text>
     <Text Include="res\langs\lang_zh.txt">
       <Filter>Resource Files\Languages</Filter>
     </Text>
@@ -592,9 +514,6 @@
     <Text Include="res\langs\lang_ko.txt">
       <Filter>Resource Files\Languages</Filter>
     </Text>
-    <Text Include="res\langs\lang_hk.txt">
-      <Filter>Resource Files\Languages</Filter>
-    </Text>
     <Text Include="res\langs\lang_sv.txt">
       <Filter>Resource Files\Languages</Filter>
     </Text>
@@ -602,6 +521,21 @@
       <Filter>Resource Files\Languages</Filter>
     </Text>
     <Text Include="res\langs\lang_tr.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_da.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_uk.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_cs.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_zh-hk.txt">
+      <Filter>Resource Files\Languages</Filter>
+    </Text>
+    <Text Include="res\langs\lang_sl.txt">
       <Filter>Resource Files\Languages</Filter>
     </Text>
   </ItemGroup>

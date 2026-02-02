@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "WinDirStat.h"
+#include "pch.h"
 
 class COptionsPropertySheet;
 
@@ -40,10 +40,10 @@ protected:
     BOOL OnInitDialog() override;
     void OnOK() override;
 
-    BOOL m_ShowDeleteWarning = FALSE;
-    BOOL m_ShowElevationPrompt = FALSE;
-    BOOL m_ShowFastScanPrompt = FALSE;
-    BOOL m_SkipDupeDetectionCloudLinksWarning = FALSE;
+    BOOL m_showDeleteWarning = FALSE;
+    BOOL m_showElevationPrompt = FALSE;
+    BOOL m_showDupeDetectionCloudLinksWarning = FALSE;
+    BOOL m_showMicrosoftProgress = FALSE;
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnBnClickedSetModified();

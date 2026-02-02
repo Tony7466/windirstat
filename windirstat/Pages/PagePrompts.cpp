@@ -15,15 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#include "stdafx.h"
-#include "WinDirStat.h"
-#include "MainFrame.h"
+#include "pch.h"
 #include "PagePrompts.h"
-#include "DirStatDoc.h"
-#include "Options.h"
-#include "GlobalHelpers.h"
-#include "Localization.h"
-#include "DarkMode.h"
 
 IMPLEMENT_DYNAMIC(CPagePrompts, CMFCPropertyPage)
 
@@ -41,17 +34,17 @@ COptionsPropertySheet* CPagePrompts::GetSheet() const
 void CPagePrompts::DoDataExchange(CDataExchange* pDX)
 {
     CMFCPropertyPage::DoDataExchange(pDX);
-    DDX_Check(pDX, IDC_DELETION_WARNING, m_ShowDeleteWarning);
-    DDX_Check(pDX, IDC_ELEVATION_PROMPT, m_ShowElevationPrompt);
-    DDX_Check(pDX, IDC_FAST_SCAN_PROMPT, m_ShowFastScanPrompt);
-    DDX_Check(pDX, IDC_CLOUD_LINKS_WARNING, m_SkipDupeDetectionCloudLinksWarning);
+    DDX_Check(pDX, IDC_DELETION_WARNING, m_showDeleteWarning);
+    DDX_Check(pDX, IDC_ELEVATION_PROMPT, m_showElevationPrompt);
+    DDX_Check(pDX, IDC_CLOUD_LINKS_WARNING, m_showDupeDetectionCloudLinksWarning);
+    DDX_Check(pDX, IDC_SHOW_MICROSOFT_PROGRESS, m_showMicrosoftProgress);
 }
 
 BEGIN_MESSAGE_MAP(CPagePrompts, CMFCPropertyPage)
     ON_BN_CLICKED(IDC_DELETION_WARNING, OnBnClickedSetModified)
     ON_BN_CLICKED(IDC_ELEVATION_PROMPT, OnBnClickedSetModified)
-    ON_BN_CLICKED(IDC_FAST_SCAN_PROMPT, OnBnClickedSetModified)
     ON_BN_CLICKED(IDC_CLOUD_LINKS_WARNING, OnBnClickedSetModified)
+    ON_BN_CLICKED(IDC_SHOW_MICROSOFT_PROGRESS, OnBnClickedSetModified)
     ON_WM_CTLCOLOR()
 END_MESSAGE_MAP()
 
@@ -68,10 +61,10 @@ BOOL CPagePrompts::OnInitDialog()
     Localization::UpdateDialogs(*this);
     DarkMode::AdjustControls(GetSafeHwnd());
 
-    m_ShowDeleteWarning = COptions::ShowDeleteWarning;
-    m_ShowElevationPrompt = COptions::ShowElevationPrompt;
-    m_ShowFastScanPrompt = COptions::ShowFastScanPrompt;
-    m_SkipDupeDetectionCloudLinksWarning = COptions::SkipDupeDetectionCloudLinksWarning;
+    m_showDeleteWarning = COptions::ShowDeleteWarning;
+    m_showElevationPrompt = COptions::ShowElevationPrompt;
+    m_showDupeDetectionCloudLinksWarning = COptions::ShowDupeDetectionCloudLinksWarning;
+    m_showMicrosoftProgress = COptions::ShowMicrosoftProgress;
 
     UpdateData(FALSE);
     return TRUE;
@@ -81,10 +74,10 @@ void CPagePrompts::OnOK()
 {
     UpdateData();
 
-    COptions::ShowDeleteWarning = (FALSE != m_ShowDeleteWarning);
-    COptions::ShowElevationPrompt = (FALSE != m_ShowElevationPrompt);
-    COptions::ShowFastScanPrompt = (FALSE != m_ShowFastScanPrompt);
-    COptions::SkipDupeDetectionCloudLinksWarning = (FALSE != m_SkipDupeDetectionCloudLinksWarning);
+    COptions::ShowDeleteWarning = (FALSE != m_showDeleteWarning);
+    COptions::ShowElevationPrompt = (FALSE != m_showElevationPrompt);
+    COptions::ShowDupeDetectionCloudLinksWarning = (FALSE != m_showDupeDetectionCloudLinksWarning);
+    COptions::ShowMicrosoftProgress = (FALSE != m_showMicrosoftProgress);
 
     CMFCPropertyPage::OnOK();
 }

@@ -18,7 +18,6 @@
 #pragma once
 
 #include "TreeListControl.h"
-#include "BlockingQueue.h"
 #include "OleFilterOverride.h"
 
 //
@@ -29,8 +28,8 @@ class CIconHandler final
     static constexpr UINT WDS_SHGFI_DEFAULTS = SHGFI_USEFILEATTRIBUTES | SHGFI_SMALLICON | SHGFI_ICON | SHGFI_ADDOVERLAYS | SHGFI_SYSICONINDEX | SHGFI_OVERLAYINDEX;
     static constexpr auto MAX_ICON_THREADS = 4;
 
-    std::mutex m_CachedIconMutex;
-    std::unordered_map<int, HICON> m_CachedIcons;
+    std::mutex m_cachedIconMutex;
+    std::unordered_map<int, HICON> m_cachedIcons;
 
 public:
     CIconHandler() = default;
@@ -40,28 +39,41 @@ public:
         std::wstring, DWORD, HICON*, std::wstring*>;
 
     void Initialize();
-    void DoAsyncShellInfoLookup(const IconLookup& lookupInfo);
+    void DoAsyncShellInfoLookup(IconLookup&& lookupInfo);
     void DrawIcon(const CDC* hdc, HICON image, const CPoint& pt, const CSize& sz);
     void ClearAsyncShellInfoQueue();
     void StopAsyncShellInfoQueue();
-    HICON GetMyComputerImage() const;
-    HICON GetMountPointImage() const;
-    HICON GetJunctionImage() const;
-    HICON GetJunctionProtectedImage() const;
-    HICON GetFreeSpaceImage() const;
-    HICON GetUnknownImage() const;
-    HICON GetEmptyImage() const;
 
     HICON FetchShellIcon(const std::wstring& path, UINT flags = 0, DWORD attr = FILE_ATTRIBUTE_NORMAL, std::wstring* psTypeName = nullptr);
+    static HICON IconFromFontChar(WCHAR ch, COLORREF textColor, bool bold = false, LPCWSTR fontName = L"Cambria Math");
 
-    BlockingQueue<IconLookup> m_LookupQueue;
-    COleFilterOverride m_FilterOverride;
+    BlockingQueue<IconLookup> m_lookupQueue = BlockingQueue<IconLookup>(false);
+    COleFilterOverride m_filterOverride;
 
-    HICON m_FreeSpaceImage = nullptr;    // <Free Space>
-    HICON m_UnknownImage = nullptr;      // <Unknown>
-    HICON m_EmptyImage = nullptr;        // For items whose icon cannot be found
-    HICON m_JunctionImage = nullptr;     // For normal functions
-    HICON m_JunctionProtected = nullptr; // For protected junctions
-    HICON m_MountPointImage = nullptr;   // Mount point icon
-    HICON m_MyComputerImage = nullptr;   // My computer icon
+    HICON m_freeSpaceImage = nullptr;    // <Free Space>
+    HICON m_unknownImage = nullptr;      // <Unknown>
+    HICON m_hardlinksImage = nullptr;    // <Hardlinks>
+    HICON m_dupesImage = nullptr;        // <Duplicates>
+    HICON m_searchImage = nullptr;       // <Search>
+    HICON m_largestImage = nullptr;      // <Largest>
+    HICON m_emptyImage = nullptr;        // For items whose icon cannot be found
+    HICON m_junctionImage = nullptr;     // For normal junctions
+    HICON m_symlinkImage = nullptr;      // For symbolic links
+    HICON m_junctionProtected = nullptr; // For protected junctions
+    HICON m_mountPointImage = nullptr;   // Mount point icon
+    HICON m_myComputerImage = nullptr;   // My computer icon
+
+    // Trivial getters
+    HICON GetMyComputerImage() const { return m_myComputerImage; }
+    HICON GetMountPointImage() const { return m_mountPointImage; }
+    HICON GetJunctionImage() const { return m_junctionImage; }
+    HICON GetSymbolicLinkImage() const { return m_symlinkImage; }
+    HICON GetJunctionProtectedImage() const { return m_junctionProtected; }
+    HICON GetFreeSpaceImage() const { return m_freeSpaceImage; }
+    HICON GetUnknownImage() const { return m_unknownImage; }
+    HICON GetEmptyImage() const { return m_emptyImage; }
+    HICON GetHardlinksImage() const { return m_hardlinksImage; }
+    HICON GetDupesImage() const { return m_dupesImage; }
+    HICON GetSearchImage() const { return m_searchImage; }
+    HICON GetLargestImage() const { return m_largestImage; }
 };

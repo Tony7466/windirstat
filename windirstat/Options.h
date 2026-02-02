@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "pch.h"
 #include "TreeMap.h"
 #include "Property.h"
 
@@ -111,6 +112,7 @@ class COptions final
 public:
 
     static Setting<bool> AutomaticallyResizeColumns;
+    static Setting<bool> AutoMapDrivesWhenElevated;
     static Setting<bool> ExcludeJunctions;
     static Setting<bool> ExcludeSymbolicLinksDirectory;
     static Setting<bool> ExcludeVolumeMountPoints;
@@ -130,6 +132,7 @@ public:
     static Setting<bool> SearchWholePhrase;
     static Setting<bool> SearchCase;
     static Setting<bool> SearchRegex;
+    static Setting<int> SearchMaxResults;
     static Setting<bool> ShowColumnAttributes;
     static Setting<bool> ShowColumnFiles;
     static Setting<bool> ShowColumnFolders;
@@ -140,7 +143,7 @@ public:
     static Setting<bool> ShowColumnSizePhysical;
     static Setting<bool> ShowDeleteWarning;
     static Setting<bool> ShowElevationPrompt;
-    static Setting<bool> ShowFastScanPrompt;
+    static Setting<bool> ShowMicrosoftProgress;
     static Setting<bool> ShowFileTypes;
     static Setting<bool> ShowFreeSpace;
     static Setting<bool> ShowStatusBar;
@@ -149,13 +152,15 @@ public:
     static Setting<bool> ShowTreeMap;
     static Setting<bool> ShowUnknown;
     static Setting<bool> SkipDupeDetectionCloudLinks;
-    static Setting<bool> SkipDupeDetectionCloudLinksWarning;
+    static Setting<bool> ShowDupeDetectionCloudLinksWarning;
     static Setting<bool> AutoElevate;
     static Setting<bool> TreeMapGrid;
     static Setting<bool> TreeMapUseLogical;
     static Setting<bool> UseBackupRestore;
+    static Setting<bool> UseDrawTextCache;
     static Setting<bool> UseFastScanEngine;
     static Setting<bool> UseWindowsLocaleSetting;
+    static Setting<bool> ProcessHardlinks;
     static Setting<COLORREF> FileTreeColor0;
     static Setting<COLORREF> FileTreeColor1;
     static Setting<COLORREF> FileTreeColor2;

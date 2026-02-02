@@ -15,47 +15,47 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#include "stdafx.h"
-#include "Item.h"
+#include "pch.h"
 #include "ItemDupe.h"
-#include "Localization.h"
 #include "CsvLoader.h"
-#include "Constants.h"
 
 enum : std::uint8_t
 {
     FIELD_NAME,
     FIELD_FILES,
-    FIELDS_FOLDERS,
+    FIELD_FOLDERS,
     FIELD_SIZE_LOGICAL,
     FIELD_SIZE_PHYSICAL,
     FIELD_ATTRIBUTES,
     FIELD_LAST_CHANGE,
     FIELD_ATTRIBUTES_WDS,
+    FIELD_INDEX,
     FIELD_OWNER,
     FIELD_COUNT
 };
 
-static std::array<CHAR, FIELD_COUNT> orderMap{};
+static std::array<UCHAR, FIELD_COUNT> orderMap{};
 static void ParseHeaderLine(const std::vector<std::wstring>& header)
 {
-    orderMap.fill(-1);
+    orderMap.fill(static_cast<size_t>(UCHAR_MAX));
     std::unordered_map<std::wstring, DWORD> resMap =
     {
         { Localization::Lookup(IDS_COL_NAME), FIELD_NAME},
         { Localization::Lookup(IDS_COL_FILES), FIELD_FILES },
-        { Localization::Lookup(IDS_COL_FOLDERS), FIELDS_FOLDERS },
+        { Localization::Lookup(IDS_COL_FOLDERS), FIELD_FOLDERS },
         { Localization::Lookup(IDS_COL_SIZE_LOGICAL), FIELD_SIZE_LOGICAL },
         { Localization::Lookup(IDS_COL_SIZE_PHYSICAL), FIELD_SIZE_PHYSICAL },
         { Localization::Lookup(IDS_COL_ATTRIBUTES), FIELD_ATTRIBUTES },
         { Localization::Lookup(IDS_COL_LAST_CHANGE), FIELD_LAST_CHANGE },
         { (Localization::LookupNeutral(AFX_IDS_APP_TITLE) + L" " + Localization::Lookup(IDS_COL_ATTRIBUTES)), FIELD_ATTRIBUTES_WDS },
+        { Localization::Lookup(IDS_COL_INDEX), FIELD_INDEX },
         { Localization::Lookup(IDS_COL_OWNER), FIELD_OWNER }
     };
 
-    for (std::vector<std::wstring>::size_type c = 0; c < header.size(); c++)
+    for (const auto c : std::views::iota(0u, header.size()))
     {
-        if (resMap.contains(header.at(c))) orderMap[resMap[header.at(c)]] = static_cast<BYTE>(c);
+        if (const auto it = resMap.find(header[c]); it != resMap.end())
+            orderMap[it->second] = static_cast<BYTE>(c);
     }
 }
 
@@ -66,7 +66,6 @@ static std::string ToTimePoint(const FILETIME& fileTime)
     return std::format("{}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
         sysTime.wYear, sysTime.wMonth, sysTime.wDay,
         sysTime.wHour, sysTime.wMinute, sysTime.wSecond);
-
 }
 
 static FILETIME FromTimeString(const std::wstring& time)
@@ -85,12 +84,18 @@ static FILETIME FromTimeString(const std::wstring& time)
 
 static std::string QuoteAndConvert(const std::wstring& inc)
 {
-    const int sz = WideCharToMultiByte(CP_UTF8, 0, inc.c_str(), -1, nullptr, 0, nullptr, nullptr);
-    std::string out = "\"";
-    out.resize(static_cast<size_t>(sz) + 1);
-    WideCharToMultiByte(CP_UTF8, 0, inc.data(), -1, &out[1], sz, nullptr, nullptr);
-    out[sz] = '"';
-    return out;
+    thread_local std::vector<CHAR> result(512, '"');
+    int charsWritten = static_cast<int>(result.size());
+    while ((charsWritten = WideCharToMultiByte(CP_UTF8, 0, inc.data(), static_cast<int>(inc.size()),
+        result.data() + 1, static_cast<int>(result.size() - 2), nullptr, nullptr)) == 0
+        && GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+    {
+        result.resize(result.size() * 2);
+    }
+
+    if (charsWritten == 0) return {};
+    result[1 + charsWritten] = '"';
+    return { result.begin(), result.begin() + 1 + charsWritten + 1 };
 }
 
 CItem* LoadResults(const std::wstring & path)
@@ -113,7 +118,8 @@ CItem* LoadResults(const std::wstring & path)
         line.resize(linebuf.size() + 1);
         const int size = MultiByteToWideChar(CP_UTF8, 0, linebuf.c_str(), -1,
             line.data(), static_cast<int>(line.size()));
-        line.resize(size);
+        if (size == 0) continue;
+        line.resize(size - 1);
 
         // Parse all fields
         for (size_t pos = 0; pos < line.length(); pos++)
@@ -142,19 +148,20 @@ CItem* LoadResults(const std::wstring & path)
             headerProcessed = true;
 
             // Validate all necessary fields are present
-            for (auto i = 0; i < static_cast<char>(orderMap.size()); i++)
+            for (const auto i : std::views::iota(0u, orderMap.size()))
             {
-                if (i != FIELD_OWNER && orderMap[i] == -1) return nullptr;
+                if (i != FIELD_OWNER && orderMap[i] == UCHAR_MAX) return nullptr;
             }
             continue;
         }
 
         // Decode item type
-        const ITEMTYPE type = static_cast<ITEMTYPE>(wcstoul(fields[orderMap[FIELD_ATTRIBUTES_WDS]].c_str(), nullptr, 16));
+        const ITEMTYPE type = static_cast<ITEMTYPE>(wcstoull(fields[orderMap[FIELD_ATTRIBUTES_WDS]].c_str(), nullptr, 16));
 
         // Determine how to store the path if it was the root or not
+        const auto itType = IT_MASK & type;
         const bool isRoot = (type & ITF_ROOTITEM);
-        const bool isInRoot = (type & IT_DRIVE) || (type & IT_UNKNOWN) || (type & IT_FREESPACE);
+        const bool isInRoot = itType == IT_DRIVE;
         const bool useFullPath = isRoot || isInRoot;
         LPWSTR lookupPath = fields[orderMap[FIELD_NAME]].data();
         LPWSTR displayName = useFullPath ? lookupPath : wcsrchr(lookupPath, L'\\');
@@ -164,16 +171,21 @@ CItem* LoadResults(const std::wstring & path)
             displayName = &displayName[1];
         }
 
+        // Parse attributes and set directory flag if needed
+        DWORD attributes = ParseAttributes(fields[orderMap[FIELD_ATTRIBUTES]]);
+        if (type & IT_DIRECTORY) attributes |= FILE_ATTRIBUTE_DIRECTORY;
+
         // Create the tree item
         CItem* newitem = new CItem(
             type,
             displayName,
             FromTimeString(fields[orderMap[FIELD_LAST_CHANGE]]),
-            _wcstoui64(fields[orderMap[FIELD_SIZE_PHYSICAL]].c_str(), nullptr, 10),
-            _wcstoui64(fields[orderMap[FIELD_SIZE_LOGICAL]].c_str(), nullptr, 10),
-            wcstoul(fields[orderMap[FIELD_ATTRIBUTES]].c_str(), nullptr, 16),
+            wcstoull(fields[orderMap[FIELD_SIZE_PHYSICAL]].c_str(), nullptr, 10),
+            wcstoull(fields[orderMap[FIELD_SIZE_LOGICAL]].c_str(), nullptr, 10),
+            wcstoull(fields[orderMap[FIELD_INDEX]].c_str(), nullptr, 16),
+            attributes,
             wcstoul(fields[orderMap[FIELD_FILES]].c_str(), nullptr, 10),
-            wcstoul(fields[orderMap[FIELDS_FOLDERS]].c_str(), nullptr, 10));
+            wcstoul(fields[orderMap[FIELD_FOLDERS]].c_str(), nullptr, 10));
 
         if (isRoot)
         {
@@ -198,7 +210,7 @@ CItem* LoadResults(const std::wstring & path)
             parentMap[mapPath] = newitem;
 
             // Special case: also add mapping for drive without backslash
-            if (newitem->IsType(IT_DRIVE)) parentMap[mapPath.substr(0, 2)] = newitem;
+            if (newitem->IsTypeOrFlag(IT_DRIVE)) parentMap[mapPath.substr(0, 2)] = newitem;
         }
     }
 
@@ -211,9 +223,8 @@ CItem* LoadResults(const std::wstring & path)
     return newroot;
 }
 
-bool SaveResults(const std::wstring& path, CItem * rootItem)
+bool SaveResults(const std::wstring& path, CItem* rootItem)
 {
-
     // Vector to store all entries
     std::vector<const CItem*> items;
     items.reserve(static_cast<size_t>(rootItem->GetItemsCount()));
@@ -225,26 +236,26 @@ bool SaveResults(const std::wstring& path, CItem * rootItem)
         // Grab item from queue
         const CItem* qitem = queue.top();
         queue.pop();
+
+        // Skip hardlink container items - we output files as if hardlink processing wasn't done
+        if (qitem->IsTypeOrFlag(IT_HLINKS)) continue;
+
         items.push_back(qitem);
-
-        // Descend into childitems
         if (qitem->IsLeaf()) continue;
-        for (const auto& child : qitem->GetChildren())
-        {
-            queue.push(child);
-        }
-    }
 
-    // Sort results
-    std::sort(std::execution::par_unseq, items.begin(), items.end(),
-        [](const CItem* a, const CItem* b) {
-            if (a->IsRootItem() != b->IsRootItem()) return a->IsRootItem();
-            return a->GetPath() < b->GetPath();
+        // Sort child items alphabetically
+        std::vector<CItem*> children = qitem->GetChildren();
+        std::ranges::sort(children, [](auto a, auto b)
+        {
+            return _wcsicmp(a->GetNameView().data(), b->GetNameView().data()) > 0;
         });
 
+        // Descend into childitems
+        for (const auto& child : children) queue.push(child);
+    }
+
     // Output header line to file
-    std::ofstream outf;
-    outf.open(path, std::ios::binary);
+    std::ofstream outf(path, std::ios::binary);
 
     // Determine columns
     std::vector cols =
@@ -256,58 +267,88 @@ bool SaveResults(const std::wstring& path, CItem * rootItem)
         Localization::Lookup(IDS_COL_SIZE_PHYSICAL),
         Localization::Lookup(IDS_COL_ATTRIBUTES),
         Localization::Lookup(IDS_COL_LAST_CHANGE),
-        Localization::LookupNeutral(AFX_IDS_APP_TITLE) + L" " + Localization::Lookup(IDS_COL_ATTRIBUTES)
+        Localization::LookupNeutral(AFX_IDS_APP_TITLE) + L" " + Localization::Lookup(IDS_COL_ATTRIBUTES),
+        Localization::Lookup(IDS_COL_INDEX)
     };
-    if (COptions::ShowColumnOwner)
-    {
-        cols.push_back(Localization::Lookup(IDS_COL_OWNER));
-    }
+    if (COptions::ShowColumnOwner) cols.push_back(Localization::Lookup(IDS_COL_OWNER));
 
     // Output columns to file
-    for (unsigned int i = 0; i < cols.size(); i++)
+    for (const auto i : std::views::iota(0u, cols.size()))
     {
-        outf << QuoteAndConvert(cols[i]) << ((i < cols.size() - 1) ? "," : "");
+        outf << QuoteAndConvert(cols[i]) << (i + 1 < cols.size() ? "," : "");
+    }
+
+    // Calculate accumulated physical sizes for parent items (to undo hardlink adjustments)
+    std::unordered_map<const CItem*, LONGLONG> adjustedSizes;
+    std::set<std::pair<const CItem*,ULONGLONG>> seenIndex;
+    std::unordered_map<CItem*, LONGLONG> unknownSize;
+    for (const auto* item : items)
+    {
+        // Subtract hardlinks size from drives and root node
+        if (item->IsTypeOrFlag(IT_DRIVE)) if (const auto hlinks = item->FindHardlinksItem(); hlinks != nullptr)
+        {
+            adjustedSizes[item] -= hlinks->GetSizePhysicalRaw();
+            if (const auto root = item->GetParent(); root != nullptr)
+            {
+                adjustedSizes[root] -= hlinks->GetSizePhysicalRaw();
+            }
+        }
+
+        // Add size to all ancestors
+        if (!item->IsTypeOrFlag(ITF_HARDLINK)) continue;
+        for (const CItem* p = item->GetParent(); p != nullptr; p = p->GetParent())
+        {
+            adjustedSizes[p] += item->GetSizePhysicalRaw();
+
+            if (!p->IsTypeOrFlag(IT_DRIVE)) continue;
+            const bool alreadySeen = seenIndex.contains({ p, item->GetIndex() });
+            if (!alreadySeen) seenIndex.emplace(p, item->GetIndex());
+
+            // Unknown size should be updated to account for all but one
+            if (const auto unknown = p->FindUnknownItem(); !alreadySeen && unknown != nullptr)
+            { 
+                unknownSize[unknown] -= item->GetSizePhysicalRaw();
+            }
+        }
     }
 
     // Output all items to file
     outf << "\r\n";
-    for (const auto item : items)
+    for (const auto* item : items)
     {
         // Output primary columns
-        const bool nonPathItem = item->IsType(IT_MYCOMPUTER | IT_UNKNOWN | IT_FREESPACE);
-        outf << std::format("{},{},{},{},{},0x{:08X},{},0x{:04X}",
+        const bool nonPathItem = item->IsTypeOrFlag(IT_MYCOMPUTER);
+        const ITEMTYPE itemType = item->GetRawType() & ~ITF_HARDLINK & ~ITHASH_MASK & ~ITF_EXTDATA;
+        const auto adjustedSize = adjustedSizes.contains(item) ? adjustedSizes[item] : 0;
+        outf << std::format("{},{},{},{},{},{},{},0x{:08X},0x{:016X}",
             QuoteAndConvert(nonPathItem ? item->GetName() : item->GetPath()),
             item->GetFilesCount(),
             item->GetFoldersCount(),
             item->GetSizeLogical(),
-            item->GetSizePhysical(),
-            item->GetAttributes(),
+            item->GetSizePhysicalRaw() + adjustedSize,
+            QuoteAndConvert(FormatAttributes(item->GetAttributes())),
             ToTimePoint(item->GetLastChange()),
-            static_cast<unsigned short>(item->GetRawType()));
+            static_cast<std::uint32_t>(itemType),
+            item->GetIndex());
 
         // Output additional columns
-        if (COptions::ShowColumnOwner)
-        {
-            outf << "," << QuoteAndConvert(item->GetOwner(true));
-        }
+        if (COptions::ShowColumnOwner) outf << "," << QuoteAndConvert(item->GetOwner(true));
 
         // Finalize lines
         outf << "\r\n";
     }
 
-    outf.close();
     return true;
 }
 
-bool SaveDuplicates(const std::wstring& path, CItemDupe* rootDupe)
+bool SaveDuplicates(const std::wstring& path, const CItemDupe* rootDupe)
 {
     // Open output file
-    std::ofstream outf;
-    outf.open(path, std::ios::binary);
+    std::ofstream outf(path, std::ios::binary);
     if (!outf.is_open()) return false;
 
     // Define and output column headers
-    std::vector cols =
+    const std::vector cols =
     {
         Localization::Lookup(IDS_COL_HASH),
         Localization::Lookup(IDS_COL_NAME),
@@ -317,32 +358,51 @@ bool SaveDuplicates(const std::wstring& path, CItemDupe* rootDupe)
         Localization::Lookup(IDS_COL_ATTRIBUTES)
     };
 
-    for (unsigned int i = 0; i < cols.size(); i++)
+    for (const auto i : std::views::iota(0u, cols.size()))
     {
-        outf << QuoteAndConvert(cols[i]) << ((i < cols.size() - 1) ? "," : "");
+        outf << QuoteAndConvert(cols[i]) << (i + 1 < cols.size() ? "," : "");
     }
     outf << "\r\n";
 
-    // Iterate through all duplicate groups
+    // Collect all duplicate items with their hash and linked item
+    std::vector<std::tuple<std::wstring, const CItem*>> dupeItems;
     for (const auto& dupeGroup : rootDupe->GetChildren())
     {
-        // Output each file in the duplicate group
         for (const auto& dupeFile : dupeGroup->GetChildren())
         {
-            const auto* linkedItem = reinterpret_cast<const CItem*>(dupeFile->GetLinkedItem());
-            if (linkedItem == nullptr) continue;
-
-            // Output file information
-            outf << std::format("{},{},{},{},{},0x{:08X}\r\n",
-                QuoteAndConvert(dupeFile->GetHash()),
-                QuoteAndConvert(linkedItem->GetPath()),
-                linkedItem->GetSizeLogical(),
-                linkedItem->GetSizePhysical(),
-                ToTimePoint(linkedItem->GetLastChange()),
-                linkedItem->GetAttributes());
+            if (const auto* dupeItem = dupeFile->GetLinkedItem(); dupeItem != nullptr)
+            {
+                dupeItems.emplace_back(dupeGroup->GetHash(), dupeItem);
+            }
         }
     }
 
-    outf.close();
+    // Sort by logical size (descending) then by hash then by path
+    std::ranges::sort(dupeItems, [](const auto& a, const auto& b)
+    {
+        const auto& [hashA, itemA] = a;
+        const auto& [hashB, itemB] = b;
+
+        const auto sizeA = itemA->GetSizeLogical();
+        const auto sizeB = itemB->GetSizeLogical();
+        if (sizeA != sizeB) return sizeA > sizeB;
+
+        if (const int hashCmp = hashA.compare(hashB); hashCmp != 0) return hashCmp < 0;
+
+        return _wcsicmp(itemA->GetPath().c_str(), itemB->GetPath().c_str()) < 0;
+    });
+
+    // Output all items to file
+    for (const auto& [hash, linkedItem] : dupeItems)
+    {
+        outf << std::format("{},{},{},{},{},{}\r\n",
+            QuoteAndConvert(hash),
+            QuoteAndConvert(linkedItem->GetPath()),
+            linkedItem->GetSizeLogical(),
+            linkedItem->GetSizePhysicalRaw(),
+            ToTimePoint(linkedItem->GetLastChange()),
+            QuoteAndConvert(FormatAttributes(linkedItem->GetAttributes())));
+    }
+
     return true;
 }

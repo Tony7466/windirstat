@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "pch.h"
 #include "ItemSearch.h"
 #include "TreeListControl.h"
 
@@ -24,28 +25,25 @@ class CFileSearchControl final : public CTreeListControl
 {
 public:
     CFileSearchControl();
-    ~CFileSearchControl() override { m_Singleton = nullptr; }
+    ~CFileSearchControl() override { m_singleton = nullptr; }
     bool GetAscendingDefault(int column) override;
-    static CFileSearchControl* Get() { return m_Singleton; }
+    static CFileSearchControl* Get() { return m_singleton; }
+    CItemSearch* GetRootItem() const { return m_rootItem; }
     static std::wregex ComputeSearchRegex(const std::wstring& searchTerm, bool searchCase, bool useRegex);
-    void ProcessSearch(CItem* item);
+    void ProcessSearch(CItem* item, const std::wstring& searchTeam, bool searchCase,
+        bool searchWholePhrase, bool searchRegex, bool onlyFiles = false);
     void RemoveItem(CItem* items);
+    void AfterDeleteAllItems() override;
 
 protected:
 
-    // Custom comparator to keep the list organized by size
-    static constexpr auto CompareBySize = [](const CItem* lhs, const CItem* rhs)
-        {
-            return lhs->GetSizeLogical() > rhs->GetSizeLogical();
-        };
-
-    static CFileSearchControl* m_Singleton;
-    std::unordered_map<CItem*, CItemSearch*> m_ItemTracker;
+    static CFileSearchControl* m_singleton;
+    CItemSearch* m_rootItem = nullptr;
+    std::unordered_map<CItem*, CItemSearch*> m_itemTracker;
 
     void OnItemDoubleClick(int i) override;
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnSetFocus(CWnd* pOldWnd);
     afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
-    afx_msg BOOL OnDeleteAllItems(NMHDR* pNMHDR, LRESULT* pResult);
 };

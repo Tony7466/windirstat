@@ -15,33 +15,25 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#include "stdafx.h"
+#include "pch.h"
 #include "CsvLoader.h"
-#include "DirStatDoc.h"
 #include "FileTreeView.h"
-#include "GlobalHelpers.h"
 #include "TreeMapView.h"
-#include "Item.h"
-#include "Localization.h"
-#include "MainFrame.h"
-#include "WinDirStat.h"
-#include "SmartPointer.h"
 #include "FileTopControl.h"
 #include "FileSearchControl.h"
 #include "FinderBasic.h"
 #include "FinderNtfs.h"
 #include "SearchDlg.h"
-#include "MessageBoxDlg.h"
 #include "ProgressDlg.h"
 
 IMPLEMENT_DYNCREATE(CDirStatDoc, CDocument)
 
 CDirStatDoc::CDirStatDoc() :
-        m_ShowFreeSpace(COptions::ShowFreeSpace)
-      , m_ShowUnknown(COptions::ShowUnknown)
+        m_showFreeSpace(COptions::ShowFreeSpace)
+      , m_showUnknown(COptions::ShowUnknown)
 {
-    ASSERT(nullptr == _theDocument);
-    _theDocument = this;
+    ASSERT(nullptr == s_singleton);
+    s_singleton = this;
 
     VTRACE(L"sizeof(CItem) = {}", sizeof(CItem));
     VTRACE(L"sizeof(CTreeListItem) = {}", sizeof(CTreeListItem));
@@ -51,39 +43,11 @@ CDirStatDoc::CDirStatDoc() :
 
 CDirStatDoc::~CDirStatDoc()
 {
-    delete m_RootItem;
-    _theDocument = nullptr;
+    delete m_rootItem;
+    s_singleton = nullptr;
 }
 
-CDirStatDoc* CDirStatDoc::_theDocument = nullptr;
-CDirStatDoc* CDirStatDoc::GetDocument()
-{
-    return _theDocument;
-}
-
-// Encodes a selection from the CSelectDrivesDlg into a string which can be routed as a pseudo
-// document "path" through MFC and finally arrives in OnOpenDocument().
-//
-std::wstring CDirStatDoc::EncodeSelection(const std::vector<std::wstring>& folders)
-{
-    return std::accumulate(folders.begin(), folders.end(), std::wstring(),
-        [&](const std::wstring& a, const std::wstring& b) {
-            return a.empty() ? b : a + wds::chrPipe + b;
-        });
-}
-
-// The inverse of EncodeSelection
-//
-std::vector<std::wstring> CDirStatDoc::DecodeSelection(const std::wstring& encodedPath)
-{
-    std::vector<std::wstring> selections;
-    for (const auto part : std::views::split(encodedPath, wds::chrPipe)) {
-        std::wstring partString(part.begin(), part.end());
-        selections.emplace_back(TrimString(partString));
-    }
-
-    return selections;
-}
+CDirStatDoc* CDirStatDoc::s_singleton = nullptr;
 
 void CDirStatDoc::DeleteContents()
 {
@@ -98,22 +62,16 @@ void CDirStatDoc::DeleteContents()
     // Reset extension data
     GetExtensionData()->clear();
 
-    // Cleanup visual artifacts
+    // Cleanup visual artifacts - controllers manage their own root items
     if (CFileTopControl::Get() != nullptr) CFileTopControl::Get()->DeleteAllItems();
     if (CFileTreeControl::Get() != nullptr) CFileTreeControl::Get()->DeleteAllItems();
     if (CFileDupeControl::Get() != nullptr) CFileDupeControl::Get()->DeleteAllItems();
     if (CFileSearchControl::Get() != nullptr) CFileSearchControl::Get()->DeleteAllItems();
 
     // Cleanup structures
-    delete m_RootItemDupe;
-    delete m_RootItemTop;
-    delete m_RootItemSearch;
-    delete m_RootItem;
-    m_RootItemDupe = nullptr;
-    m_RootItemTop = nullptr;
-    m_RootItemSearch = nullptr;
-    m_RootItem = nullptr;
-    m_ZoomItem = nullptr;
+    delete m_rootItem;
+    m_rootItem = nullptr;
+    m_zoomItem = nullptr;
 }
 
 BOOL CDirStatDoc::OnNewDocument()
@@ -135,17 +93,18 @@ BOOL CDirStatDoc::OnOpenDocument(LPCWSTR lpszPathName)
 
     // Decode list of folders to scan
     const std::wstring spec = lpszPathName;
-    std::vector<std::wstring> selections = DecodeSelection(spec);
+    std::vector<std::wstring> selections = SplitString(spec);
 
     // Prepare for new root and delete any existing data
     CDocument::OnNewDocument();
 
     // Call base class to commit path to internal doc name string
-    GetDocument()->SetPathName(spec.c_str(), FALSE);
+    Get()->SetPathName(spec.c_str(), FALSE);
 
     // Count number of drives for validation
-    const auto driveCount = static_cast<size_t>(std::ranges::count_if(selections, [](const std::wstring& str) {
-        return std::regex_match(str, std::wregex(LR"(^[A-Za-z]:[\\]?$)"));
+    const std::wregex driveMatch(LR"(^[A-Za-z]:[\\]?$)", std::regex_constants::optimize);
+    const auto driveCount = static_cast<size_t>(std::ranges::count_if(selections, [&](const std::wstring& str) {
+        return std::regex_match(str, driveMatch);
     }));
 
     // Return if no paths were passed
@@ -169,58 +128,54 @@ BOOL CDirStatDoc::OnOpenDocument(LPCWSTR lpszPathName)
         }
 
         const LPCWSTR name = ppszName != nullptr ? const_cast<LPCWSTR>(*ppszName) : L"This PC";
-        m_RootItem = new CItem(IT_MYCOMPUTER | ITF_ROOTITEM, name);
-        for (const auto & rootFolder : selections)
+        m_rootItem = new CItem(IT_MYCOMPUTER | ITF_ROOTITEM, name);
+        for (const auto& rootFolder : selections)
         {
             const auto drive = new CItem(IT_DRIVE, rootFolder);
-            m_RootItem->AddChild(drive);
+            m_rootItem->AddChild(drive);
         }
     }
     else
     {
         const ITEMTYPE type = driveCount == 1 ? IT_DRIVE : IT_DIRECTORY;
-        m_RootItem = new CItem(type | ITF_ROOTITEM, selections.front());
-        m_RootItem->UpdateStatsFromDisk();
+        m_rootItem = new CItem(type | ITF_ROOTITEM, selections.front());
+        m_rootItem->UpdateStatsFromDisk();
     }
 
     // Restore zoom scope to be the root
-    m_ZoomItem = m_RootItem;
-
-    // Set new node for extra views
-    m_RootItemDupe = new CItemDupe();
-    m_RootItemTop = new CItemTop();
-    m_RootItemSearch = new CItemSearch();
+    m_zoomItem = m_rootItem;
 
     // Update new root for display
     UpdateAllViews(nullptr, HINT_NEWROOT);
-    StartScanningEngine(std::vector({ GetDocument()->GetRootItem() }));
+    StartScanningEngine(std::vector({ Get()->GetRootItem() }));
     return true;
 }
 
-BOOL CDirStatDoc::OnOpenDocument(CItem * newroot)
+BOOL CDirStatDoc::OnOpenDocument(CItem* newroot)
 {
     CMainFrame::Get()->MinimizeTreeMapView();
     CMainFrame::Get()->MinimizeExtensionView();
 
     CDocument::OnNewDocument(); // --> DeleteContents()
 
-    // Determine root spec string
-    std::wstring spec = newroot->GetName();
-    if (newroot->IsType(IT_MYCOMPUTER))
+    // Determine root spec string using GetNameView to avoid temporary allocations
+    std::wstring spec(newroot->GetNameView());
+    if (newroot->IsTypeOrFlag(IT_MYCOMPUTER))
     {
         std::vector<std::wstring> folders;
         std::ranges::transform(newroot->GetChildren(), std::back_inserter(folders),
-            [](const CItem* obj) -> std::wstring { return obj->GetName().substr(0, 2); });
-        spec = EncodeSelection(folders);
+            [](const CItem* obj) -> std::wstring { return std::wstring(obj->GetNameView().substr(0, 2)); });
+        spec = JoinString(folders);
+    }
+    else if (newroot->IsTypeOrFlag(IT_DRIVE))
+    {
+        spec = std::wstring(newroot->GetNameView().substr(0, 2));
     }
 
-    GetDocument()->SetPathName(spec.c_str(), FALSE);
+    Get()->SetPathName(spec.c_str(), FALSE);
 
-    m_RootItemDupe = new CItemDupe();
-    m_RootItemTop = new CItemTop();
-    m_RootItemSearch = new CItemSearch();
-    m_RootItem = newroot;
-    m_ZoomItem = m_RootItem;
+    m_rootItem = newroot;
+    m_zoomItem = m_rootItem;
 
     UpdateAllViews(nullptr, HINT_NEWROOT);
     StartScanningEngine({});
@@ -264,20 +219,20 @@ COLORREF CDirStatDoc::GetZoomColor() const
 
 CExtensionData* CDirStatDoc::GetExtensionData()
 {
-    return &m_ExtensionData;
+    return &m_extensionData;
 }
 
 SExtensionRecord* CDirStatDoc::GetExtensionDataRecord(const std::wstring& ext)
 {
-    std::scoped_lock guard(m_ExtensionMutex);
-    return &m_ExtensionData[ext];
+    std::scoped_lock guard(m_extensionMutex);
+    return &m_extensionData[ext];
 }
 
 ULONGLONG CDirStatDoc::GetRootSize() const
 {
-    ASSERT(m_RootItem != nullptr);
+    ASSERT(m_rootItem != nullptr);
     ASSERT(IsRootDone());
-    return m_RootItem->GetSizePhysical();
+    return m_rootItem->GetSizePhysical();
 }
 
 // Starts a refresh of all mount points in our tree.
@@ -295,46 +250,31 @@ void CDirStatDoc::RefreshReparsePointItems()
 
 bool CDirStatDoc::HasRootItem() const
 {
-    return m_RootItem != nullptr;
+    return m_rootItem != nullptr;
 }
 
 bool CDirStatDoc::IsRootDone() const
 {
-    return HasRootItem() && m_RootItem->IsDone();
+    return HasRootItem() && m_rootItem->IsDone();
 }
 
 bool CDirStatDoc::IsScanRunning() const
 {
-    if (m_thread == nullptr) return false;
+    if (!m_thread.has_value()) return false;
 
     DWORD exitCode;
-    GetExitCodeThread(m_thread->native_handle(), &exitCode);
+    GetExitCodeThread(const_cast<std::jthread&>(*m_thread).native_handle(), &exitCode);
     return (exitCode == STILL_ACTIVE);
 }
 
 CItem* CDirStatDoc::GetRootItem() const
 {
-    return m_RootItem;
+    return m_rootItem;
 }
 
 CItem* CDirStatDoc::GetZoomItem() const
 {
-    return m_ZoomItem;
-}
-
-CItemDupe* CDirStatDoc::GetRootItemDupe() const
-{
-    return m_RootItemDupe;
-}
-
-CItemTop* CDirStatDoc::GetRootItemTop() const
-{
-    return m_RootItemTop;
-}
-
-CItemSearch* CDirStatDoc::GetRootItemSearch() const
-{
-    return m_RootItemSearch;
+    return m_zoomItem;
 }
 
 bool CDirStatDoc::IsZoomed() const
@@ -344,13 +284,13 @@ bool CDirStatDoc::IsZoomed() const
 
 void CDirStatDoc::SetHighlightExtension(const std::wstring & ext)
 {
-    m_HighlightExtension = ext;
+    m_highlightExtension = ext;
     CMainFrame::Get()->UpdatePaneText();
 }
 
 std::wstring CDirStatDoc::GetHighlightExtension() const
 {
-    return m_HighlightExtension;
+    return m_highlightExtension;
 }
 
 // The root item has been deleted.
@@ -372,9 +312,9 @@ void CDirStatDoc::UnlinkRoot()
 bool CDirStatDoc::UserDefinedCleanupWorksForItem(USERDEFINEDCLEANUP* udc, const CItem* item) const
 {
     return item != nullptr && (
-        (item->IsType(IT_DRIVE) && udc->WorksForDrives) ||
-        (item->IsType(IT_DIRECTORY) && udc->WorksForDirectories) ||
-        (item->IsType(IT_FILE) && udc->WorksForFiles) ||
+        (item->IsTypeOrFlag(IT_DRIVE) && udc->WorksForDrives) ||
+        (item->IsTypeOrFlag(IT_DIRECTORY) && udc->WorksForDirectories) ||
+        (item->IsTypeOrFlag(IT_FILE) && udc->WorksForFiles) ||
         (item->HasUncPath() && udc->WorksForUncPaths));
 }
 
@@ -382,11 +322,14 @@ void CDirStatDoc::OpenItem(const CItem* item, const std::wstring & verb)
 {
     ASSERT(item != nullptr);
 
+    // Ignore if special reserved item
+    if (item->IsTypeOrFlag(ITF_RESERVED)) return;
+
     // Determine path to feed into shell function
     SmartPointer<LPITEMIDLIST> pidl(CoTaskMemFree, nullptr);
-    if (item->IsType(IT_MYCOMPUTER))
+    if (item->IsTypeOrFlag(IT_MYCOMPUTER))
     {
-        (void) SHGetSpecialFolderLocation(nullptr, CSIDL_DRIVES, &pidl);
+        SHGetKnownFolderIDList(FOLDERID_ComputerFolder, 0, nullptr, &pidl);
     }
     else
     {
@@ -401,8 +344,7 @@ void CDirStatDoc::OpenItem(const CItem* item, const std::wstring & verb)
     }
 
     // Launch properties dialog
-    SHELLEXECUTEINFO sei;
-    ZeroMemory(&sei, sizeof(sei));
+    SHELLEXECUTEINFO sei{};
     sei.cbSize = sizeof(sei);
     sei.hwnd = *AfxGetMainWnd();
     sei.lpVerb = verb.empty() ? nullptr : verb.c_str();
@@ -412,21 +354,21 @@ void CDirStatDoc::OpenItem(const CItem* item, const std::wstring & verb)
     ShellExecuteEx(&sei);
 }
 
-void CDirStatDoc::RecurseRefreshReparsePoints(CItem* item) const
+void CDirStatDoc::RecurseRefreshReparsePoints(CItem* items) const
 {
     std::vector<CItem*> toRefresh;
 
-    if (item == nullptr) return;
-    std::stack<CItem*> reparseStack({item});
+    if (items == nullptr) return;
+    std::stack<CItem*> reparseStack({items});
     while (!reparseStack.empty())
     {
-        const auto& qitem = reparseStack.top();
+        const auto qitem = reparseStack.top();
         reparseStack.pop();
 
-        if (!item->IsType(IT_DIRECTORY | IT_DRIVE)) continue;
+        if (!qitem->IsTypeOrFlag(IT_DIRECTORY, IT_DRIVE)) continue;
         for (const auto& child : qitem->GetChildren())
         {
-            if (!child->IsType(IT_DIRECTORY | IT_DRIVE | ITF_ROOTITEM))
+            if (!(child->IsTypeOrFlag(IT_DIRECTORY, IT_DRIVE) || child->IsTypeOrFlag(ITF_ROOTITEM)))
             {
                 continue;
             }
@@ -448,46 +390,18 @@ void CDirStatDoc::RecurseRefreshReparsePoints(CItem* item) const
     }
 }
 
-// Gets all items of type IT_DRIVE.
-//
-std::vector<CItem*> CDirStatDoc::GetDriveItems() const
-{
-    std::vector<CItem*> drives;
-    CItem* root = GetRootItem();
-
-    if (nullptr == root)
-    {
-        return drives;
-    }
-
-    if (root->IsType(IT_MYCOMPUTER))
-    {
-        for (const auto& child : root->GetChildren())
-        {
-            ASSERT(child->IsType(IT_DRIVE));
-            drives.push_back(child);
-        }
-    }
-    else if (root->IsType(IT_DRIVE))
-    {
-        drives.push_back(root);
-    }
-
-    return drives;
-}
-
 void CDirStatDoc::RebuildExtensionData()
 {
     // Do initial extension information population if necessary
-    if (m_ExtensionData.empty())
+    if (m_extensionData.empty())
     {
         GetRootItem()->ExtensionDataProcessChildren();
     }
 
     // Collect iterators to the map entries to avoid copying keys
     std::vector<CExtensionData::iterator> sortedExtensions;
-    sortedExtensions.reserve(m_ExtensionData.size());
-    for (auto it = m_ExtensionData.begin(); it != m_ExtensionData.end(); ++it)
+    sortedExtensions.reserve(m_extensionData.size());
+    for (auto it = m_extensionData.begin(); it != m_extensionData.end(); ++it)
     {
         sortedExtensions.emplace_back(it);
     }
@@ -495,7 +409,7 @@ void CDirStatDoc::RebuildExtensionData()
     // Sort the iterators based on total bytes in descending order
     std::ranges::sort(sortedExtensions, [](const auto& a_it, const auto& b_it)
     {
-        return a_it->second.bytes.load() > b_it->second.bytes.load();
+        return a_it->second.GetBytes() > b_it->second.GetBytes();
     });
 
     // Initialize colors if not already done
@@ -508,23 +422,20 @@ void CDirStatDoc::RebuildExtensionData()
     // Assign primary colors to extensions
     const auto extensionsSize = sortedExtensions.size();
     const auto primaryColorsMax = min(colors.size(), extensionsSize);
-    for (std::size_t i = 0; i < primaryColorsMax; ++i)
+    for (const size_t i : std::views::iota(0u, primaryColorsMax))
     {
         sortedExtensions[i]->second.color = colors[i];
     }
 
     // Assign fallback colors to extensions
     const auto fallbackColor = colors.back();
-    for (std::size_t i = primaryColorsMax; i < extensionsSize; ++i)
+    for (const size_t i : std::views::iota(primaryColorsMax, extensionsSize))
     {
         sortedExtensions[i]->second.color = fallbackColor;
     }
 }
 
-// Deletes a file or directory via SHFileOperation.
-// Return: false, if canceled
-//
-bool CDirStatDoc::DeletePhysicalItems(const std::vector<CItem*>& items, const bool toTrashBin, const bool emptyOnly) const
+void CDirStatDoc::DeletePhysicalItems(const std::vector<CItem*>& items, const bool toTrashBin, const bool emptyOnly) const
 {
     if (COptions::ShowDeleteWarning)
     {
@@ -543,46 +454,97 @@ bool CDirStatDoc::DeletePhysicalItems(const std::vector<CItem*>& items, const bo
             Localization::Lookup(IDS_DONT_SHOW_AGAIN), false);
 
         // Change default width and display
-        warning.SetInitialWindowSize({ 600, 600 });
-        if (IDYES != warning.DoModal())
-        {
-            return false;
-        }
+        warning.SetInitialWindowSize({ 600, 400 });
+        if (IDYES != warning.DoModal()) return;
 
         // Save off the deletion warning preference
         COptions::ShowDeleteWarning = !warning.IsCheckboxChecked();
     }
 
-    CProgressDlg(0, true, AfxGetMainWnd(), [&](const std::atomic<bool>&, std::atomic<size_t>&)
+    // Build list of items to delete
+    std::vector<CItem*> itemsToDelete{ items };
+    if (emptyOnly)
     {
-        // Build list of items to delete
-        std::vector<CItem*> itemsToDelete{ items };
-        if (emptyOnly)
+        auto childrenView = items | std::views::transform(&CItem::GetChildren) | std::views::join;
+        itemsToDelete.assign(childrenView.begin(), childrenView.end());
+    }
+
+    // Calculate total item count for progress tracking
+    size_t totalItems = 0;
+    for (const auto& item : itemsToDelete)
+    {
+        totalItems += static_cast<size_t>(1 + item->GetItemsCount());
+    }
+
+    bool cancelled = false;
+    if (!toTrashBin) CProgressDlg(totalItems, false, AfxGetMainWnd(), [&](CProgressDlg* pdlg)
+    {
+        // Try native deletion first for non-trash bin operations
+        std::vector<const CItem*> itemsInPostOrder;
+        std::stack<std::pair<const CItem*, bool>> stack;
+        for (const auto& item : itemsToDelete)
         {
-            itemsToDelete.clear();
-            for (const auto& item : items)
-            {
-                const auto& children = item->GetChildren();
-                itemsToDelete.insert(itemsToDelete.end(), children.begin(), children.end());
-            }
+            stack.emplace(item, false);
         }
 
-        // Determine flags to use for deletion
-        auto flags = FOF_NOCONFIRMATION | FOFX_SHOWELEVATIONPROMPT | FOF_NOERRORUI;
-        if (toTrashBin)
+        // Collect items in depth-first for native deletion
+        while (!stack.empty())
         {
-            flags |= (IsWindows8OrGreater() ? (FOFX_ADDUNDORECORD | FOFX_RECYCLEONDELETE) : FOF_ALLOWUNDO);
+            auto [item, processed] = stack.top(); stack.pop();
+
+            if (!processed && item->HasChildren())
+            {
+                stack.emplace(item, true);
+                for (const auto& child : item->GetChildren())
+                    stack.emplace(child, false);
+            }
+            else itemsInPostOrder.push_back(item);
         }
+
+        // Actually delete items in post-order
+        for (const auto& item : itemsInPostOrder)
+        {
+            if (pdlg->IsCancelled())
+            {
+                cancelled = true;
+                return;
+            }
+
+            pdlg->Increment();
+            item->IsTypeOrFlag(IT_DIRECTORY)
+                ? RemoveDirectory(item->GetPathLong().c_str())
+                : DeleteFile(item->GetPathLong().c_str());
+        }
+
+        // Check if top-level items still exist
+        std::vector<CItem*> remainingItems;
+        for (const auto& item : itemsToDelete)
+        {
+            if (GetFileAttributes(item->GetPathLong().c_str()) != INVALID_FILE_ATTRIBUTES)
+            {
+                remainingItems.push_back(item);
+            }
+        }
+        itemsToDelete = std::move(remainingItems);
+    }).DoModal();
+
+    if (!cancelled && !itemsToDelete.empty())
+        CProgressDlg(0, false, AfxGetMainWnd(), [&](const CProgressDlg* pdlg)
+    {
+        // For trash bin operations, use IFileOperation directly
+        auto flags = FOFX_SHOWELEVATIONPROMPT | (COptions::ShowMicrosoftProgress ? FOF_NOCONFIRMMKDIR : FOF_NO_UI);
+        if (toTrashBin) flags |= FOFX_ADDUNDORECORD | FOFX_RECYCLEONDELETE;
 
         CComPtr<IFileOperation> fileOperation;
         if (FAILED(::CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&fileOperation))) ||
+            FAILED(fileOperation->SetOwnerWindow(*pdlg)) ||
             FAILED(fileOperation->SetOperationFlags(flags)))
         {
             return;
         }
 
         // Add all items into a single deletion operation
-        for (const auto& item : items)
+        for (const auto& item : itemsToDelete)
         {
             CComPtr<IShellItem> shellitem;
             SmartPointer<LPITEMIDLIST> pidl(CoTaskMemFree, ILCreateFromPath(item->GetPath().c_str()));
@@ -591,66 +553,27 @@ bool CDirStatDoc::DeletePhysicalItems(const std::vector<CItem*>& items, const bo
         }
 
         // Do all deletions
-        HRESULT res = fileOperation->PerformOperations();
+        const HRESULT res = fileOperation->PerformOperations();
         if (res != S_OK) VTRACE(L"File Operation Failed: {}", TranslateError(res));
-
-        // Re-run deletion using native function to handle any long paths that were missed
-        if (!toTrashBin)
-        {
-            // Create a list of files and directories that still exist to remove
-            std::vector<const CItem*> filesToDelete;
-            std::vector<const CItem*> dirsToDelete;
-            std::stack<const CItem*> childStack;
-            for (const auto& item : items) childStack.push(item);
-            while (!childStack.empty())
-            {
-                const auto& item = childStack.top();
-                childStack.pop();
-                if (!FinderBasic::DoesFileExist(item->GetPath())) continue;
-
-                if (item->IsType(IT_DIRECTORY))
-                {
-                    dirsToDelete.emplace_back(item);
-                    for (const auto& child : item->GetChildren())
-                    {
-                        childStack.push(child);
-                    }
-                }
-                else if (item->IsType(IT_FILE))
-                {
-                    filesToDelete.emplace_back(item);
-                }
-            }
-
-            // First remove files and then attempt directories in order from deep to shallow
-            for (const auto& file : filesToDelete) DeleteFile(file->GetPathLong().c_str());
-            for (const auto& dir : dirsToDelete | std::views::reverse)
-            {
-                std::error_code ec;
-                std::filesystem::remove_all(std::filesystem::path(dir->GetPathLong().c_str()), ec);
-            }
-        }
     }).DoModal();
 
-    // Create a list of items and recycler directories to refresh
-    std::vector<CItem*> refresh{ items };
+    // Create a recycler directories to refresh
+    std::unordered_set<CItem*> recyclers;
     if (toTrashBin) for (const auto& item : items)
     {
-        if (const auto & recycler = item->FindRecyclerItem(); recycler != nullptr &&
-            std::ranges::find(refresh, recycler) == refresh.end())
-        {
-            refresh.push_back(recycler);
-        }
+        const auto& recycler = item->FindRecyclerItem();
+        if (recycler != nullptr) recyclers.insert(recycler);
     }
 
     // Refresh the items and recycler directories
-    RefreshItem(items);
-    return true;
+    std::vector<CItem*> itemsToRefresh = items;
+    itemsToRefresh.insert(itemsToRefresh.end(), recyclers.begin(), recyclers.end());
+    RefreshItem(itemsToRefresh);
 }
 
 void CDirStatDoc::SetZoomItem(CItem* item)
 {
-    m_ZoomItem = item;
+    m_zoomItem = item;
     UpdateAllViews(nullptr, HINT_ZOOMCHANGED);
 }
 
@@ -660,7 +583,7 @@ void CDirStatDoc::SetZoomItem(CItem* item)
 //
 void CDirStatDoc::RefreshItem(const std::vector<CItem*>& item) const
 {
-    GetDocument()->StartScanningEngine(item);
+    Get()->StartScanningEngine(item);
 }
 
 // UDC confirmation dialog.
@@ -672,7 +595,7 @@ void CDirStatDoc::AskForConfirmation(USERDEFINEDCLEANUP* udc, const CItem* item)
         return;
     }
 
-    const std::wstring msg = Localization::Format(udc->RecurseIntoSubdirectories ?
+    const std::wstring msg = Localization::Format(udc->RecurseIntoSubdirectories ? 
         Localization::Lookup(IDS_RUDC_CONFIRMATIONss) : Localization::Lookup(IDS_UDC_CONFIRMATIONss),
         udc->Title.Obj(), item->GetPath());
     if (IDYES != WdsMessageBox(msg, MB_YESNO))
@@ -688,7 +611,7 @@ void CDirStatDoc::PerformUserDefinedCleanup(USERDEFINEDCLEANUP* udc, const CItem
     const std::wstring path = item->GetPath();
 
     // Verify that path still exists
-    if (item->IsType(IT_DIRECTORY | IT_DRIVE))
+    if (item->IsTypeOrFlag(IT_DIRECTORY, IT_DRIVE))
     {
         if (!FolderExists(path) && !DriveExists(path))
         {
@@ -698,7 +621,7 @@ void CDirStatDoc::PerformUserDefinedCleanup(USERDEFINEDCLEANUP* udc, const CItem
     }
     else
     {
-        ASSERT(item->IsType(IT_FILE));
+        ASSERT(item->IsTypeOrFlag(IT_FILE));
 
         if (!::PathFileExists(path.c_str()))
         {
@@ -709,13 +632,13 @@ void CDirStatDoc::PerformUserDefinedCleanup(USERDEFINEDCLEANUP* udc, const CItem
 
     if (udc->RecurseIntoSubdirectories)
     {
-        ASSERT(item->IsType(IT_DRIVE | IT_DIRECTORY));
+        ASSERT(item->IsTypeOrFlag(IT_DRIVE, IT_DIRECTORY));
 
         RecursiveUserDefinedCleanup(udc, path, path);
     }
     else
     {
-        CallUserDefinedCleanup(item->IsType(IT_DIRECTORY | IT_DRIVE), udc->CommandLine.Obj(), path, path, udc->ShowConsoleWindow, udc->WaitForCompletion);
+        CallUserDefinedCleanup(item->IsTypeOrFlag(IT_DIRECTORY, IT_DRIVE), udc->CommandLine.Obj(), path, path, udc->ShowConsoleWindow, udc->WaitForCompletion);
     }
 }
 
@@ -748,12 +671,12 @@ void CDirStatDoc::RefreshAfterUserDefinedCleanup(const USERDEFINEDCLEANUP* udc, 
 
 void CDirStatDoc::RecursiveUserDefinedCleanup(USERDEFINEDCLEANUP* udc, const std::wstring& rootPath, const std::wstring& currentPath)
 {
-    // (Depth first.)
+    // (Depth first.) 
 
     FinderBasic finder;
     for (BOOL b = finder.FindFile(currentPath); b; b = finder.FindNext())
     {
-        if (finder.IsDots() || !finder.IsDirectory())
+        if (!finder.IsDirectory())
         {
             continue;
         }
@@ -780,9 +703,7 @@ void CDirStatDoc::CallUserDefinedCleanup(const bool isDirectory, const std::wstr
     si.dwFlags     = STARTF_USESHOWWINDOW;
     si.wShowWindow = showConsoleWindow ? SW_SHOWNORMAL : SW_HIDE;
 
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&pi, sizeof(pi));
-
+    PROCESS_INFORMATION pi{};
     if (CreateProcess(app.c_str(), cmdline.data(), nullptr, nullptr, false,
         0, nullptr, directory.c_str(), &si, &pi) == 0)
     {
@@ -826,22 +747,25 @@ std::wstring CDirStatDoc::BuildUserDefinedCleanupCommandLine(const std::wstring 
 
 void CDirStatDoc::PushReselectChild(CItem* item)
 {
-    m_ReselectChildStack.AddHead(item);
+    m_reselectChildStack.push_back(item);
 }
 
 CItem* CDirStatDoc::PopReselectChild()
 {
-    return m_ReselectChildStack.RemoveHead();
+    if (m_reselectChildStack.empty()) return nullptr;
+    CItem* item = m_reselectChildStack.back();
+    m_reselectChildStack.pop_back();
+    return item;
 }
 
 void CDirStatDoc::ClearReselectChildStack()
 {
-    m_ReselectChildStack.RemoveAll();
+    m_reselectChildStack.clear();
 }
 
 bool CDirStatDoc::IsReselectChildAvailable() const
 {
-    return !m_ReselectChildStack.IsEmpty();
+    return !m_reselectChildStack.empty();
 }
 
 bool CDirStatDoc::FileTreeHasFocus()
@@ -872,21 +796,63 @@ CTreeListControl* CDirStatDoc::GetFocusControl()
     return CFileTreeControl::Get();
 }
 
+void CDirStatDoc::UpdateAllViews(CView* pSender, VIEW_HINT hint, CItem* pHint)
+{
+    InvalidateSelectionCache();
+
+    CDocument::UpdateAllViews(pSender, static_cast<LONG>(hint), reinterpret_cast<CObject*>(pHint));
+}
+
 std::vector<CItem*> CDirStatDoc::GetAllSelected()
 {
-    return GetFocusControl()->GetAllSelected<CItem>();
+    // Check if we can use cached results
+    const auto currentFocus = CMainFrame::Get()->GetLogicalFocus();
+    if (m_selectionCacheValid && m_cachedFocus == currentFocus)
+    {
+        return m_cachedSelection;
+    }
+
+    // Query fresh selection data
+    auto selection = GetFocusControl()->GetAllSelected<CItem>();
+
+    // Expand any visual items if the direct item fetch did not work
+    if (selection.empty()) for (const auto item : GetFocusControl()->GetAllSelected<CTreeListItem>(true))
+    {
+        // If item has no direct link but has children, expand to children
+        if (item->GetLinkedItem()) continue;
+        
+        for (const auto i : std::views::iota(0, item->GetTreeListChildCount()))
+        {
+            if (const auto linkedItem = item->GetTreeListChild(i)->GetLinkedItem())
+            {
+                selection.push_back(linkedItem);
+            }
+        }
+    }
+
+    // Update cache
+    m_cachedFocus = currentFocus;
+    m_cachedSelection = selection;
+    m_selectionCacheValid = true;
+
+    return selection;
+}
+
+void CDirStatDoc::InvalidateSelectionCache()
+{
+    m_selectionCacheValid = false;
 }
 
 void CDirStatDoc::OnUpdateCentralHandler(CCmdUI* pCmdUI)
 {
     struct commandFilter
     {
-        bool allowNone = false;        // allow display when nothing is selected
-        bool allowMany = false;        // allow display when multiple items are selected
-        bool allowEarly = false;       // allow display before processing is finished
+        bool allowNone = false; // allow display when nothing is selected
+        bool allowMany = false; // allow display when multiple items are selected
+        bool allowEarly = false; // allow display before processing is finished
         LOGICAL_FOCUS focus = LF_NONE; // restrict which views support this selection
-        ITEMTYPE typesAllow = IT_ANY;  // only display if these types are allowed
-        bool (*extra)(CItem*) = [](CItem*) { return true; }; // extra checks
+        std::vector<ITEMTYPE> typesAllow{ ITF_ANY }; // only display if these types are allowed
+        bool (*extra)(CItem*) = nullptr; // extra checks
     };
 
     // special conditions
@@ -895,6 +861,7 @@ void CDirStatDoc::OnUpdateCentralHandler(CCmdUI* pCmdUI)
     static bool (*parentNotNull)(CItem*) = [](CItem* item) { return item != nullptr && item->GetParent() != nullptr; };
     static bool (*reselectAvail)(CItem*) = [](CItem*) { return doc->IsReselectChildAvailable(); };
     static bool (*notRoot)(CItem*) = [](CItem* item) { return item != nullptr && !item->IsRootItem(); };
+    static bool (*hasRecycleBin)(CItem*) = [](CItem* item) { return item != nullptr && !item->IsRootItem() && IsLocalDrive(item->GetPath()); };
     static bool (*isResumable)(CItem*) = [](CItem*) { return CMainFrame::Get()->IsScanSuspended(); };
     static bool (*isSuspendable)(CItem*) = [](CItem*) { return doc->HasRootItem() && !doc->IsRootDone() && !CMainFrame::Get()->IsScanSuspended(); };
     static bool (*isStoppable)(CItem*) = [](CItem*) { return doc->HasRootItem() && !doc->IsRootDone(); };
@@ -902,62 +869,69 @@ void CDirStatDoc::OnUpdateCentralHandler(CCmdUI* pCmdUI)
     static bool (*isElevated)(CItem*) = [](CItem*) { return IsElevationActive(); };
     static bool (*isElevationAvailable)(CItem*) = [](CItem*) { return IsElevationActive(); };
     static bool (*isDupeTabVisible)(CItem*) = [](CItem*) { return CMainFrame::Get()->GetFileTabbedView()->IsDupeTabVisible(); };
+    static bool (*isVhdFile)(CItem*) = [](CItem* item) { return item != nullptr && IsElevationActive() && (!item->IsTypeOrFlag(IT_FILE) || item->GetExtension() == L".vhdx"); };
     
     static std::unordered_map<UINT, const commandFilter> filters
     {
         // ID                           none   many   early  focus        types
-        { ID_CLEANUP_DELETE,          { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE, notRoot } },
-        { ID_CLEANUP_DELETE_BIN,      { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE, notRoot } },
-        { ID_CLEANUP_DISK_CLEANUP  ,  { true,  true,  false, LF_NONE,     IT_ANY, isElevationAvailable } },
-        { ID_CLEANUP_DISM_ANALYZE,    { true,  true,  false, LF_NONE,     IT_ANY, isElevationAvailable } },
-        { ID_CLEANUP_DISM_NORMAL,     { true,  true,  false, LF_NONE,     IT_ANY, isElevationAvailable } },
-        { ID_CLEANUP_DISM_RESET,      { true,  true,  false, LF_NONE,     IT_ANY, isElevationAvailable } },
-        { ID_CLEANUP_EMPTY_BIN,       { true,  true,  false, LF_NONE,     IT_ANY } },
-        { ID_CLEANUP_EMPTY_FOLDER,    { true,  true,  false, LF_NONE,     IT_DIRECTORY, notRoot } },
-        { ID_CLEANUP_EXPLORER_SELECT, { false, true,  true,  LF_NONE,     IT_DIRECTORY | IT_FILE } },
-        { ID_CLEANUP_HIBERNATE,       { true,  true,  false, LF_NONE,     IT_ANY, isHibernate } },
-        { ID_CLEANUP_OPEN_IN_CONSOLE, { false, true,  true,  LF_NONE,     IT_DRIVE | IT_DIRECTORY | IT_FILE } },
-        { ID_CLEANUP_OPEN_IN_PWSH,    { false, true,  true,  LF_NONE,     IT_DRIVE | IT_DIRECTORY | IT_FILE } },
-        { ID_CLEANUP_OPEN_SELECTED,   { false, true,  true,  LF_NONE,     IT_MYCOMPUTER | IT_DRIVE | IT_DIRECTORY | IT_FILE } },
-        { ID_CLEANUP_PROPERTIES,      { false, true,  true,  LF_NONE,     IT_MYCOMPUTER | IT_DRIVE | IT_DIRECTORY | IT_FILE } },
-        { ID_CLEANUP_REMOVE_LOCAL,    { true,  true,  false, LF_NONE,     IT_ANY, isElevated } },
-        { ID_CLEANUP_REMOVE_ROAMING,  { true,  true,  false, LF_NONE,     IT_ANY, isElevated } },
-        { ID_CLEANUP_REMOVE_SHADOW,   { true,  true,  false, LF_NONE,     IT_ANY, isElevated } },
-        { ID_COMPRESS_LZNT1,          { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE } },
-        { ID_COMPRESS_LZX,            { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE } },
-        { ID_COMPRESS_NONE,           { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE } },
-        { ID_COMPRESS_XPRESS16K,      { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE } },
-        { ID_COMPRESS_XPRESS4K,       { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE } },
-        { ID_COMPRESS_XPRESS8K,       { false, true,  false, LF_NONE,     IT_DIRECTORY | IT_FILE } },
-        { ID_COMPUTE_HASH,            { false, false, false, LF_NONE,     IT_FILE } },
-        { ID_EDIT_COPY_CLIPBOARD,     { false, true,  true,  LF_NONE,     IT_DRIVE | IT_DIRECTORY | IT_FILE } },
-        { ID_FILTER,                  { true,  true,  true,  LF_NONE,     IT_ANY } },
-        { ID_INDICATOR_DISK,          { true,  true,  false, LF_NONE,     IT_ANY } },
-        { ID_INDICATOR_IDLE,          { true,  true,  true,  LF_NONE,     IT_ANY } },
-        { ID_INDICATOR_MEM,           { true,  true,  true,  LF_NONE,     IT_ANY } },
-        { ID_REFRESH_ALL,             { true,  true,  false, LF_NONE,     IT_ANY } },
-        { ID_REFRESH_SELECTED,        { false, true,  false, LF_NONE,     IT_MYCOMPUTER | IT_DRIVE | IT_DIRECTORY | IT_FILE } },
-        { ID_SAVE_DUPLICATES,         { true,  true,  false, LF_NONE,     IT_ANY, isDupeTabVisible } },
-        { ID_SAVE_RESULTS,            { true,  true,  false, LF_NONE,     IT_ANY } },
-        { ID_SCAN_RESUME,             { true,  true,  true,  LF_NONE,     IT_ANY, isResumable } },
-        { ID_SCAN_STOP,               { true,  true,  true,  LF_NONE,     IT_ANY, isStoppable } },
-        { ID_SCAN_SUSPEND,            { true,  true,  true,  LF_NONE,     IT_ANY, isSuspendable } },
-        { ID_SEARCH,                  { true,  true,  false, LF_NONE,     IT_ANY } },
-        { ID_TREEMAP_RESELECT_CHILD,  { true,  true,  true,  LF_FILETREE, IT_ANY, reselectAvail } },
-        { ID_TREEMAP_SELECT_PARENT,   { false, false, true,  LF_FILETREE, IT_ANY, parentNotNull } },
-        { ID_TREEMAP_ZOOMIN,          { false, false, false, LF_FILETREE, IT_DRIVE | IT_DIRECTORY} },
-        { ID_TREEMAP_ZOOMOUT,         { true,  true,  false, LF_FILETREE, IT_ANY, canZoomOut } },
-        { ID_VIEW_SHOWFREESPACE,      { true,  true,  false, LF_NONE,     IT_ANY } },
-        { ID_VIEW_SHOWUNKNOWN,        { true,  true,  false, LF_NONE,     IT_ANY } }
+        { ID_CLEANUP_DELETE,          { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE }, notRoot } },
+        { ID_CLEANUP_DELETE_BIN,      { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE }, hasRecycleBin } },
+        { ID_CLEANUP_DISK_CLEANUP  ,  { true,  true,  false, LF_NONE,     { ITF_ANY }, isElevationAvailable } },
+        { ID_CLEANUP_MOVE_TO,         { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE }, notRoot } },
+        { ID_CLEANUP_REMOVE_PROGRAMS, { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_CLEANUP_DISM_ANALYZE,    { true,  true,  true,  LF_NONE,     { ITF_ANY }, isElevationAvailable } },
+        { ID_CLEANUP_DISM_NORMAL,     { true,  true,  false, LF_NONE,     { ITF_ANY }, isElevationAvailable } },
+        { ID_CLEANUP_DISM_RESET,      { true,  true,  false, LF_NONE,     { ITF_ANY }, isElevationAvailable } },
+        { ID_CLEANUP_EMPTY_BIN,       { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_CLEANUP_EMPTY_FOLDER,    { true,  true,  false, LF_NONE,     { IT_DIRECTORY }, notRoot } },
+        { ID_CLEANUP_EXPLORER_SELECT, { false, true,  true,  LF_NONE,     { IT_DIRECTORY, IT_FILE } } },
+        { ID_CLEANUP_HIBERNATE,       { true,  true,  false, LF_NONE,     { ITF_ANY }, isHibernate } },
+        { ID_CLEANUP_OPEN_IN_CONSOLE, { false, true,  true,  LF_NONE,     { IT_DRIVE, IT_DIRECTORY, IT_FILE } } },
+        { ID_CLEANUP_OPEN_IN_PWSH,    { false, true,  true,  LF_NONE,     { IT_DRIVE, IT_DIRECTORY, IT_FILE } } },
+        { ID_CLEANUP_OPEN_SELECTED,   { false, true,  true,  LF_NONE,     { IT_MYCOMPUTER, IT_DRIVE, IT_DIRECTORY, IT_FILE } } },
+        { ID_CLEANUP_PROPERTIES,      { false, true,  true,  LF_NONE,     { IT_MYCOMPUTER, IT_DRIVE, IT_DIRECTORY, IT_FILE } } },
+        { ID_CLEANUP_OPTIMIZE_VHD,    { false, true,  false, LF_NONE,     { IT_DRIVE, IT_DIRECTORY, IT_FILE }, isVhdFile } },
+        { ID_CLEANUP_REMOVE_LOCAL,    { true,  true,  false, LF_NONE,     { ITF_ANY }, isElevated } },
+        { ID_CLEANUP_REMOVE_MOTW,     { false, true,  false, LF_NONE,     { IT_DRIVE, IT_DIRECTORY, IT_FILE } } },
+        { ID_CLEANUP_REMOVE_ROAMING,  { true,  true,  false, LF_NONE,     { ITF_ANY }, isElevated } },
+        { ID_CLEANUP_REMOVE_SHADOW,   { true,  true,  false, LF_NONE,     { ITF_ANY }, isElevated } },
+        { ID_COMPRESS_LZNT1,          { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE } } },
+        { ID_COMPRESS_LZX,            { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE } } },
+        { ID_COMPRESS_NONE,           { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE } } },
+        { ID_COMPRESS_XPRESS16K,      { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE } } },
+        { ID_COMPRESS_XPRESS4K,       { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE } } },
+        { ID_COMPRESS_XPRESS8K,       { false, true,  false, LF_NONE,     { IT_DIRECTORY, IT_FILE } } },
+        { ID_COMPUTE_HASH,            { false, false, true,  LF_NONE,     { IT_FILE } } },
+        { ID_EDIT_COPY_CLIPBOARD,     { false, true,  true,  LF_NONE,     { IT_DRIVE, IT_DIRECTORY, IT_FILE } } },
+        { ID_FILTER,                  { true,  true,  true,  LF_NONE,     { ITF_ANY } } },
+        { ID_INDICATOR_DISK,          { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_INDICATOR_IDLE,          { true,  true,  true,  LF_NONE,     { ITF_ANY } } },
+        { ID_INDICATOR_RAM,           { true,  true,  true,  LF_NONE,     { ITF_ANY } } },
+        { ID_INDICATOR_SIZE,          { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_REFRESH_ALL,             { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_REFRESH_SELECTED,        { false, true,  false, LF_NONE,     { IT_MYCOMPUTER, IT_DRIVE, IT_DIRECTORY, IT_FILE } } },
+        { ID_SAVE_DUPLICATES,         { true,  true,  false, LF_NONE,     { ITF_ANY }, isDupeTabVisible } },
+        { ID_SAVE_RESULTS,            { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_SCAN_RESUME,             { true,  true,  true,  LF_NONE,     { ITF_ANY }, isResumable } },
+        { ID_SCAN_STOP,               { true,  true,  true,  LF_NONE,     { ITF_ANY }, isStoppable } },
+        { ID_SCAN_SUSPEND,            { true,  true,  true,  LF_NONE,     { ITF_ANY }, isSuspendable } },
+        { ID_SEARCH,                  { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_TREEMAP_RESELECT_CHILD,  { true,  true,  true,  LF_FILETREE, { ITF_ANY }, reselectAvail } },
+        { ID_TREEMAP_SELECT_PARENT,   { false, false, true,  LF_FILETREE, { ITF_ANY }, parentNotNull } },
+        { ID_TREEMAP_ZOOMIN,          { false, false, false, LF_FILETREE, { IT_DRIVE , IT_DIRECTORY } } },
+        { ID_TREEMAP_ZOOMOUT,         { true,  true,  false, LF_FILETREE, { ITF_ANY }, canZoomOut } },
+        { ID_VIEW_SHOWFREESPACE,      { true,  true,  false, LF_NONE,     { ITF_ANY } } },
+        { ID_VIEW_SHOWUNKNOWN,        { true,  true,  false, LF_NONE,     { ITF_ANY } } }
     };
 
-    if (!filters.contains(pCmdUI->m_nID))
+    const auto it = filters.find(pCmdUI->m_nID);
+    if (it == filters.end())
     {
         ASSERT(FALSE);
         return;
     }
 
-    const auto& filter = filters[pCmdUI->m_nID];
+    const auto& filter = it->second;
     const auto& items = (filter.allowNone && filter.extra == nullptr) ?
         std::vector<CItem*>{} : GetAllSelected();
 
@@ -966,11 +940,13 @@ void CDirStatDoc::OnUpdateCentralHandler(CCmdUI* pCmdUI)
     allow &= filter.allowNone || !items.empty();
     allow &= filter.allowMany || items.size() <= 1;
     allow &= filter.allowEarly || (IsRootDone() && !IsScanRunning());
-    if (items.empty()) allow &= filter.extra(nullptr);
+    if (items.empty() && filter.extra != nullptr) allow &= filter.extra(nullptr);
     for (const auto& item : items)
     {
-        allow &= filter.extra(item);
-        allow &= item->IsType(filter.typesAllow);
+        allow &= filter.typesAllow.front() == ITF_ANY || !item->IsTypeOrFlag(ITF_RESERVED);
+        allow &= (filter.extra == nullptr) || filter.extra(item);
+        allow &= std::ranges::any_of(filter.typesAllow,
+            [item](ITEMTYPE type) { return item->IsTypeOrFlag(type); });
     }
 
     pCmdUI->Enable(allow);
@@ -987,7 +963,7 @@ void CDirStatDoc::OnUpdateCompressionHandler(CCmdUI* pCmdUI)
     bool allow = (flag & (MF_DISABLED | MF_GRAYED)) == 0;
     for (const auto& item : GetAllSelected())
     {
-        allow &= CompressFileAllowed(item->GetPath(),
+        allow &= CompressFileAllowed(item->GetVolumeRoot()->GetPath(),
             CompressionIdToAlg(pCmdUI->m_nID));
     }
     pCmdUI->Enable(allow);
@@ -1002,6 +978,7 @@ BEGIN_MESSAGE_MAP(CDirStatDoc, CDocument)
     ON_COMMAND_UPDATE_WRAPPER(ID_SAVE_DUPLICATES, OnSaveDuplicates)
     ON_COMMAND_UPDATE_WRAPPER(ID_EDIT_COPY_CLIPBOARD, OnEditCopy)
     ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_EMPTY_BIN, OnCleanupEmptyRecycleBin)
+    ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_MOVE_TO, OnCleanupMoveTo)
     ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWFREESPACE, OnUpdateViewShowFreeSpace)
     ON_COMMAND(ID_VIEW_SHOWFREESPACE, OnViewShowFreeSpace)
     ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWUNKNOWN, OnUpdateViewShowUnknown)
@@ -1023,6 +1000,8 @@ BEGIN_MESSAGE_MAP(CDirStatDoc, CDocument)
     ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_REMOVE_ROAMING, OnRemoveRoamingProfiles)
     ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_REMOVE_LOCAL, OnRemoveLocalProfiles)
     ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_DISK_CLEANUP, OnExecuteDiskCleanupUtility)
+    ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_REMOVE_PROGRAMS, OnExecuteProgramsFeatures)
+    ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_REMOVE_MOTW, OnRemoveMarkOfTheWebTags)
     ON_UPDATE_COMMAND_UI_RANGE(ID_USERDEFINEDCLEANUP0, ID_USERDEFINEDCLEANUP9, OnUpdateUserDefinedCleanup)
     ON_COMMAND_RANGE(ID_USERDEFINEDCLEANUP0, ID_USERDEFINEDCLEANUP9, OnUserDefinedCleanup)
     ON_COMMAND_UPDATE_WRAPPER(ID_TREEMAP_SELECT_PARENT, OnTreeMapSelectParent)
@@ -1032,12 +1011,14 @@ BEGIN_MESSAGE_MAP(CDirStatDoc, CDocument)
     ON_COMMAND_UPDATE_WRAPPER(ID_COMPUTE_HASH, OnComputeHash)
     ON_UPDATE_COMMAND_UI_RANGE(ID_COMPRESS_NONE, ID_COMPRESS_LZX, OnUpdateCompressionHandler)
     ON_COMMAND_RANGE(ID_COMPRESS_NONE, ID_COMPRESS_LZX, OnCleanupCompress)
+    ON_COMMAND_UPDATE_WRAPPER(ID_CLEANUP_OPTIMIZE_VHD, OnCleanupOptimizeVhd)
     ON_COMMAND_UPDATE_WRAPPER(ID_SCAN_RESUME, OnScanResume)
     ON_COMMAND_UPDATE_WRAPPER(ID_SCAN_SUSPEND, OnScanSuspend)
     ON_COMMAND_UPDATE_WRAPPER(ID_SCAN_STOP, OnScanStop)
-    ON_UPDATE_COMMAND_UI(ID_INDICATOR_MEM, OnUpdateCentralHandler)
+    ON_UPDATE_COMMAND_UI(ID_INDICATOR_RAM, OnUpdateCentralHandler)
     ON_UPDATE_COMMAND_UI(ID_INDICATOR_DISK, OnUpdateCentralHandler)
     ON_UPDATE_COMMAND_UI(ID_INDICATOR_IDLE, OnUpdateCentralHandler)
+    ON_UPDATE_COMMAND_UI(ID_INDICATOR_SIZE, OnUpdateCentralHandler)    
     ON_UPDATE_COMMAND_UI(ID_CLEANUP_DISK_CLEANUP, OnUpdateCentralHandler)
     ON_COMMAND_RANGE(CONTENT_MENU_MINCMD, CONTENT_MENU_MAXCMD, OnContextMenuExplore)
 END_MESSAGE_MAP()
@@ -1052,18 +1033,18 @@ void CDirStatDoc::OnRefreshSelected()
 
 void CDirStatDoc::OnRefreshAll()
 {
-    OnOpenDocument(GetDocument()->GetPathName().GetString());
+    OnOpenDocument(Get()->GetPathName().GetString());
 }
 
 void CDirStatDoc::OnSaveResults()
 {
     // Request the file path from the user
-    std::wstring fileSelectString = std::format(L"{} (*.csv)|*.csv|{} (*.*)|*.*||",
+    const std::wstring fileSelectString = std::format(L"{} (*.csv)|*.csv|{} (*.*)|*.*||",
         Localization::Lookup(IDS_CSV_FILES), Localization::Lookup(IDS_ALL_FILES));
     CFileDialog dlg(FALSE, L"csv", nullptr, OFN_EXPLORER | OFN_DONTADDTORECENT, fileSelectString.c_str());
     if (dlg.DoModal() != IDOK) return;
 
-    CProgressDlg(0, true, AfxGetMainWnd(), [&](const std::atomic<bool>&, std::atomic<size_t>&)
+    CProgressDlg(0, true, AfxGetMainWnd(), [&](CProgressDlg*)
     {
         SaveResults(dlg.GetPathName().GetString(), GetRootItem());
     }).DoModal();
@@ -1072,38 +1053,39 @@ void CDirStatDoc::OnSaveResults()
 void CDirStatDoc::OnSaveDuplicates()
 {
     // Request the file path from the user
-    std::wstring fileSelectString = std::format(L"{} (*.csv)|*.csv|{} (*.*)|*.*||",
+    const std::wstring fileSelectString = std::format(L"{} (*.csv)|*.csv|{} (*.*)|*.*||",
         Localization::Lookup(IDS_CSV_FILES), Localization::Lookup(IDS_ALL_FILES));
     CFileDialog dlg(FALSE, L"csv", nullptr, OFN_EXPLORER | OFN_DONTADDTORECENT, fileSelectString.c_str());
     if (dlg.DoModal() != IDOK) return;
 
-    CProgressDlg(0, true, AfxGetMainWnd(), [&](const std::atomic<bool>&, std::atomic<size_t>&)
+    CProgressDlg(0, true, AfxGetMainWnd(), [&](CProgressDlg*)
     {
-        SaveDuplicates(dlg.GetPathName().GetString(), GetRootItemDupe());
+        SaveDuplicates(dlg.GetPathName().GetString(), CFileDupeControl::Get()->GetRootItem());
     }).DoModal();
 }
 
 void CDirStatDoc::OnLoadResults()
 {
     // Request the file path from the user
-    std::wstring fileSelectString = std::format(L"{} (*.csv)|*.csv|{} (*.*)|*.*||",
+    const std::wstring fileSelectString = std::format(L"{} (*.csv)|*.csv|{} (*.*)|*.*||",
         Localization::Lookup(IDS_CSV_FILES), Localization::Lookup(IDS_ALL_FILES));
     CFileDialog dlg(TRUE, L"csv", nullptr, OFN_EXPLORER | OFN_DONTADDTORECENT | OFN_PATHMUSTEXIST, fileSelectString.c_str());
     if (dlg.DoModal() != IDOK) return;
 
-    CProgressDlg(0, true, AfxGetMainWnd(), [&](const std::atomic<bool>&, std::atomic<size_t>&)
+    CItem* newroot = nullptr;
+    CProgressDlg(0, true, AfxGetMainWnd(), [&](CProgressDlg*)
     {
-        CItem* newroot = LoadResults(dlg.GetPathName().GetString());
-        GetDocument()->OnOpenDocument(newroot);
+        newroot = LoadResults(dlg.GetPathName().GetString());
     }).DoModal();
+
+    Get()->OnOpenDocument(newroot);
 }
 
 void CDirStatDoc::OnEditCopy()
 {
     // create concatenated paths
     std::wstring paths;
-    const auto & items = GetAllSelected();
-    for (const auto & item : items)
+    for (const auto & item : GetAllSelected())
     {
         if (!paths.empty()) paths += L"\r\n";
         paths += item->GetPath();
@@ -1114,14 +1096,15 @@ void CDirStatDoc::OnEditCopy()
 
 void CDirStatDoc::OnCleanupEmptyRecycleBin()
 {
-    CProgressDlg(0, true, AfxGetMainWnd(), [](const std::atomic<bool>&, std::atomic<size_t>&)
+    CProgressDlg(0, true, AfxGetMainWnd(), [](CProgressDlg*)
     {
-        SHEmptyRecycleBin(*AfxGetMainWnd(), nullptr, 0);
+        SHEmptyRecycleBin(*AfxGetMainWnd(), nullptr,
+            SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND);
     }).DoModal();
 
     // locate all drive items in order to refresh recyclers
     std::vector<CItem*> toRefresh;
-    for (const auto& drive : GetDriveItems())
+    for (const auto& drive : GetRootItem()->GetDriveItems())
     {
         if (CItem* recycler = drive->FindRecyclerItem(); recycler != nullptr)
         {
@@ -1130,7 +1113,7 @@ void CDirStatDoc::OnCleanupEmptyRecycleBin()
     }
 
     // refresh recyclers
-    if (!toRefresh.empty()) GetDocument()->StartScanningEngine(toRefresh);
+    if (!toRefresh.empty()) Get()->StartScanningEngine(toRefresh);
 }
 
 void CDirStatDoc::OnRemoveShadowCopies()
@@ -1139,10 +1122,9 @@ void CDirStatDoc::OnRemoveShadowCopies()
     ULONGLONG count = 0, bytesUsed = 0;
     QueryShadowCopies(count, bytesUsed);
 
-    CProgressDlg(static_cast<size_t>(count), false, AfxGetMainWnd(), [](const std::atomic<bool>& cancelRequested,
-        std::atomic<size_t>& progress)
+    CProgressDlg(static_cast<size_t>(count), false, AfxGetMainWnd(), [](CProgressDlg* pdlg)
     {
-        RemoveWmiInstances(L"Win32_ShadowCopy", progress, cancelRequested);
+        RemoveWmiInstances(L"Win32_ShadowCopy", pdlg);
     }).DoModal();
 
     GetRootItem()->UpdateFreeSpaceItem();
@@ -1151,21 +1133,21 @@ void CDirStatDoc::OnRemoveShadowCopies()
 void CDirStatDoc::OnUpdateViewShowFreeSpace(CCmdUI* pCmdUI)
 {
     OnUpdateCentralHandler(pCmdUI);
-    pCmdUI->SetCheck(m_ShowFreeSpace);
+    pCmdUI->SetCheck(m_showFreeSpace);
 }
 
 void CDirStatDoc::OnViewShowFreeSpace()
 {
-    for (const auto& drive : GetDriveItems())
+    for (const auto& drive : GetRootItem()->GetDriveItems())
     {
-        if (m_ShowFreeSpace)
+        if (m_showFreeSpace)
         {
             const CItem* free = drive->FindFreeSpaceItem();
             ASSERT(free != nullptr);
 
             if (GetZoomItem() == free)
             {
-                m_ZoomItem = free->GetParent();
+                m_zoomItem = free->GetParent();
             }
 
             drive->RemoveFreeSpaceItem();
@@ -1177,8 +1159,8 @@ void CDirStatDoc::OnViewShowFreeSpace()
     }
 
     // Toggle value
-    m_ShowFreeSpace = !m_ShowFreeSpace;
-    COptions::ShowFreeSpace = m_ShowFreeSpace;
+    m_showFreeSpace = !m_showFreeSpace;
+    COptions::ShowFreeSpace = m_showFreeSpace;
 
     // Force recalculation and graph refresh
     StartScanningEngine({});
@@ -1187,21 +1169,21 @@ void CDirStatDoc::OnViewShowFreeSpace()
 void CDirStatDoc::OnUpdateViewShowUnknown(CCmdUI* pCmdUI)
 {
     OnUpdateCentralHandler(pCmdUI);
-    pCmdUI->SetCheck(m_ShowUnknown);
+    pCmdUI->SetCheck(m_showUnknown);
 }
 
 void CDirStatDoc::OnViewShowUnknown()
 {
-    for (const auto& drive : GetDriveItems())
+    for (const auto& drive : GetRootItem()->GetDriveItems())
     {
-        if (m_ShowUnknown)
+        if (m_showUnknown)
         {
             const CItem* unknown = drive->FindUnknownItem();
             ASSERT(unknown != nullptr);
 
             if (GetZoomItem() == unknown)
             {
-                m_ZoomItem = unknown->GetParent();
+                m_zoomItem = unknown->GetParent();
             }
 
             drive->RemoveUnknownItem();
@@ -1213,8 +1195,8 @@ void CDirStatDoc::OnViewShowUnknown()
     }
 
     // Toggle value
-    m_ShowUnknown = !m_ShowUnknown;
-    COptions::ShowUnknown = m_ShowUnknown;
+    m_showUnknown = !m_showUnknown;
+    COptions::ShowUnknown = m_showUnknown;
 
     // Force recalculation and graph refresh
     StartScanningEngine({});
@@ -1279,7 +1261,8 @@ void CDirStatDoc::OnExplorerSelect()
         }
 
         // attempt to open the items in the shell
-        SHOpenFolderAndSelectItems(parent, static_cast<UINT>(pidl.size()), const_cast<LPCITEMIDLIST*>(pidl.data()), 0);
+        (void) SHOpenFolderAndSelectItems(parent, static_cast<UINT>(pidl.size()),
+            const_cast<LPCITEMIDLIST*>(pidl.data()), 0);
     }
 }
 
@@ -1297,21 +1280,23 @@ void CDirStatDoc::OnCommandPromptHere()
     const std::wstring cmd = GetCOMSPEC();
     for (const auto& path : paths)
     {
-        ShellExecuteWrapper(cmd, L"", L"open", *AfxGetMainWnd(), path);
+        // If using command prompt, use pushd to force a drive mount
+        std::wstring uncmod = path.starts_with(L"\\\\") ? std::format(L"&& PUSHD \"{}\" && CLS", path) : L"";
+        std::wstring params = std::format(L"/K TITLE {} - \"{}\" {}", wds::strWinDirStat, path, uncmod);
+
+        // Launch command prompt
+        ShellExecuteWrapper(cmd, params, L"open", *AfxGetMainWnd(), path);
     }
 }
 
 void CDirStatDoc::OnPowerShellHere()
 {
     // locate PWSH
-    static std::wstring pwsh;
-    if (pwsh.empty()) for (const auto exe : { L"pwsh.exe", L"powershell.exe" })
+    static std::wstring pwsh(MAX_PATH, L'\0');
+    if (!pwsh.front()) for (const auto exe : { L"pwsh.exe", L"powershell.exe" })
     {
-        SmartPointer<HMODULE> lib(FreeLibrary, LoadLibrary(exe));
-        if (lib == nullptr) continue;
-        pwsh.resize(MAX_PATH);
-        if (GetModuleFileNameW(lib, pwsh.data(),
-            static_cast<DWORD>(pwsh.size())) > 0 && GetLastError() == ERROR_SUCCESS)
+        if (SearchPath(nullptr, exe, nullptr,
+            static_cast<DWORD>(pwsh.size()), pwsh.data(), nullptr) > 0)
         {
             pwsh.resize(wcslen(pwsh.data()));
             break;
@@ -1348,6 +1333,77 @@ void CDirStatDoc::OnCleanupEmptyFolder()
     DeletePhysicalItems(GetAllSelected(), false, true);
 }
 
+void CDirStatDoc::OnCleanupMoveTo()
+{
+    const auto& items = GetAllSelected();
+    if (items.empty()) return;
+
+    // Show folder browser dialog to get destination directory
+    CFolderPickerDialog dlg(nullptr, OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_DONTADDTORECENT);
+    dlg.m_ofn.lpstrTitle = wds::strWinDirStat;
+
+    if (dlg.DoModal() != IDOK) return;
+    const std::wstring destFolder = dlg.GetPathName().GetString();
+
+    // Verify destination exists
+    if (!FolderExists(destFolder)) return;
+
+    // Show progress dialog and move files
+    CProgressDlg(0, false, AfxGetMainWnd(), [&](const CProgressDlg* pdlg)
+    {
+        // Create file operation object
+        CComPtr<IFileOperation> fileOperation;
+        CComPtr<IShellItem> destShellItem;
+        const auto flags = FOFX_SHOWELEVATIONPROMPT | (COptions::ShowMicrosoftProgress ? FOF_NOCONFIRMMKDIR : FOF_NO_UI);
+        if (FAILED(::CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&fileOperation))) ||
+            FAILED(fileOperation->SetOwnerWindow(*pdlg)) ||
+            FAILED(fileOperation->SetOperationFlags(flags)) ||
+            FAILED(SHCreateItemFromParsingName(destFolder.c_str(), nullptr, IID_PPV_ARGS(&destShellItem))))
+        {
+            return;
+        }
+
+        // Add all items to the move operation
+        for (const auto& item : items)
+        {
+            CComPtr<IShellItem> sourceShellItem;
+            SmartPointer<LPITEMIDLIST> pidl(CoTaskMemFree, ILCreateFromPath(item->GetPath().c_str()));
+            if (pidl == nullptr || FAILED(SHCreateItemFromIDList(pidl, IID_PPV_ARGS(&sourceShellItem))))
+            {
+                continue;
+            }
+
+            fileOperation->MoveItem(sourceShellItem, destShellItem, nullptr, nullptr);
+        }
+
+        // Do all moves
+        const HRESULT res = fileOperation->PerformOperations();
+        if (res != S_OK) VTRACE(L"File Operation Failed: {}", TranslateError(res));
+    }).DoModal();
+
+    // Refresh the parent items of the moved files
+    std::vector<CItem*> refresh;
+    for (const auto& item : items)
+    {
+        if (item->GetParent() != nullptr &&
+            std::ranges::find(refresh, item->GetParent()) == refresh.end())
+        {
+            refresh.push_back(item->GetParent());
+        }
+    }
+
+    // Add in destination directory as a refresh location if present
+    if (const auto destItem = GetRootItem()->FindItemByPath(destFolder); destItem != nullptr)
+    {
+        refresh.push_back(destItem);
+    }
+
+    if (!refresh.empty())
+    {
+        RefreshItem(refresh);
+    }
+}
+
 void CDirStatDoc::OnSearch()
 {
     SearchDlg search;
@@ -1359,11 +1415,11 @@ void CDirStatDoc::OnDisableHibernateFile()
     DisableHibernate();
 
     // See if there is a hibernate file on any drive to refresh
-    for (const auto& drive : GetDriveItems())
+    for (const auto& drive : GetRootItem()->GetDriveItems())
     {
         for (const auto& child : drive->GetChildren())
         {
-            if (_wcsicmp(child->GetName().c_str(), L"hiberfil.sys") == 0)
+            if (_wcsicmp(child->GetNameView().data(), L"hiberfil.sys") == 0)
             {
                 StartScanningEngine({ child });
             }
@@ -1373,9 +1429,9 @@ void CDirStatDoc::OnDisableHibernateFile()
 
 void CDirStatDoc::OnRemoveRoamingProfiles()
 {
-    CProgressDlg(0, false, AfxGetMainWnd(), [&](const std::atomic<bool>& cancelRequested, std::atomic<size_t>& progress)
+    CProgressDlg(0, false, AfxGetMainWnd(), [&](CProgressDlg* pdlg)
     {
-        RemoveWmiInstances(L"Win32_UserProfile", progress, cancelRequested,
+        RemoveWmiInstances(L"Win32_UserProfile", pdlg,
             L"RoamingConfigured = TRUE");
     }).DoModal();
 
@@ -1384,9 +1440,9 @@ void CDirStatDoc::OnRemoveRoamingProfiles()
 
 void CDirStatDoc::OnRemoveLocalProfiles()
 {
-    CProgressDlg(0, false, AfxGetMainWnd(), [&](const std::atomic<bool>&cancelRequested, std::atomic<size_t>& progress)
+    CProgressDlg(0, false, AfxGetMainWnd(), [&](CProgressDlg* pdlg)
     {
-        RemoveWmiInstances(L"Win32_UserProfile", progress, cancelRequested,
+        RemoveWmiInstances(L"Win32_UserProfile", pdlg,
             L"RoamingConfigured = FALSE AND Loaded = FALSE AND Special = FALSE");
     }).DoModal();
 
@@ -1396,6 +1452,11 @@ void CDirStatDoc::OnRemoveLocalProfiles()
 void CDirStatDoc::OnExecuteDiskCleanupUtility()
 {
     ShellExecuteWrapper(L"CLEANMGR.EXE");
+}
+
+void CDirStatDoc::OnExecuteProgramsFeatures()
+{
+    ShellExecuteWrapper(L"appwiz.cpl");
 }
 
 void CDirStatDoc::OnExecuteDismAnalyze()
@@ -1482,8 +1543,7 @@ void CDirStatDoc::OnTreeMapReselectChild()
 
 void CDirStatDoc::OnCleanupOpenTarget()
 {
-    const auto & items = GetAllSelected();
-    for (const auto & item : items)
+    for (const auto & item : GetAllSelected())
     {
         OpenItem(item);
     }
@@ -1491,8 +1551,7 @@ void CDirStatDoc::OnCleanupOpenTarget()
 
 void CDirStatDoc::OnCleanupProperties()
 {
-    const auto & items = GetAllSelected();
-    for (const auto & item : items)
+    for (const auto & item : GetAllSelected())
     {
         OpenItem(item, L"properties");
     }
@@ -1501,68 +1560,74 @@ void CDirStatDoc::OnCleanupProperties()
 void CDirStatDoc::OnComputeHash()
 {
     // Compute the hash in the message thread
+    std::wstring hashResult;
     const auto& items = GetAllSelected();
-    const std::wstring hashResult = ComputeFileHashes(items.front()->GetPath());
+    CProgressDlg(0, false, AfxGetMainWnd(), [&](CProgressDlg*)
+    {
+        hashResult = ComputeFileHashes(items.front()->GetPath());
+    }).DoModal();
 
     // Display result in message box
     CMessageBoxDlg dlg(hashResult, Localization::LookupNeutral(AFX_IDS_APP_TITLE), MB_OK | MB_ICONINFORMATION);
-    dlg.SetInitialWindowSize(CSize(1000, 200));
+    dlg.SetWidthAuto();
     dlg.DoModal();
 }
 
-CompressionAlgorithm CDirStatDoc::CompressionIdToAlg(const UINT id)
+constexpr CompressionAlgorithm CDirStatDoc::CompressionIdToAlg(const UINT id)
 {
-    const std::unordered_map<UINT, CompressionAlgorithm> compressionMap =
+    switch (id)
     {
-        { ID_COMPRESS_NONE, CompressionAlgorithm::NONE },
-        { ID_COMPRESS_LZNT1, CompressionAlgorithm::LZNT1 },
-        { ID_COMPRESS_XPRESS4K, CompressionAlgorithm::XPRESS4K },
-        { ID_COMPRESS_XPRESS8K, CompressionAlgorithm::XPRESS8K },
-        { ID_COMPRESS_XPRESS16K, CompressionAlgorithm::XPRESS16K },
-        { ID_COMPRESS_LZX, CompressionAlgorithm::LZX }
-    };
-
-    return compressionMap.at(id);
+        case ID_COMPRESS_NONE: return CompressionAlgorithm::NONE;
+        case ID_COMPRESS_LZNT1: return  CompressionAlgorithm::LZNT1;
+        case ID_COMPRESS_XPRESS4K: return  CompressionAlgorithm::XPRESS4K;
+        case ID_COMPRESS_XPRESS8K: return  CompressionAlgorithm::XPRESS8K;
+        case ID_COMPRESS_XPRESS16K: return  CompressionAlgorithm::XPRESS16K;
+        case ID_COMPRESS_LZX: return  CompressionAlgorithm::LZX;
+        default: return CompressionAlgorithm::NONE;
+    }
 }
 
 void CDirStatDoc::OnCleanupCompress(UINT id)
 {
     CWaitCursor wc;
     const auto& itemsSelected = GetAllSelected();
-    std::vector<const CItem*> itemsToCompress;
-    std::stack<const CItem*> childStack;
-    for (const auto & item : itemsSelected) { childStack.push(item); }
-    while (!childStack.empty())
-    {
-        const auto& item = childStack.top();
-        childStack.pop();
-
-        if (item->IsType(IT_DIRECTORY))
-        {
-            for (const auto& child : item->GetChildren())
-            {
-                childStack.push(child);
-            }
-        }
-        else if (item->IsType(IT_FILE))
-        {
-            itemsToCompress.emplace_back(item);
-        }
-    }
-
+    const auto& items = CItem::GetItemsRecursive(itemsSelected);
+   
     // Show progress dialog and compress files
     const auto alg = CompressionIdToAlg(id);
-    CProgressDlg(itemsToCompress.size(), false, AfxGetMainWnd(), [&](const std::atomic<bool>& cancel,
-        std::atomic<size_t>& current)
+    CProgressDlg(items.size(), false, AfxGetMainWnd(), [&](CProgressDlg* pdlg)
     {
-        for (size_t i = 0; i < itemsToCompress.size() && !cancel; ++i)
+        for (const auto & item : items)
         {
-            current = i + 1;
-            CompressFile(itemsToCompress[i]->GetPathLong(), alg);
+            if (pdlg->IsCancelled()) break;
+            CompressFile(item->GetPathLong(), alg);
+            pdlg->Increment();
         }
     }).DoModal();
 
     // Refresh items after compression
+    RefreshItem(itemsSelected);
+}
+
+void CDirStatDoc::OnCleanupOptimizeVhd()
+{
+    CWaitCursor wc;
+    const auto& itemsSelected = GetAllSelected();
+    const auto& items = CItem::GetItemsRecursive(itemsSelected, [](const CItem* item) {
+        return item->IsTypeOrFlag(IT_FILE) && item->GetExtension() == L".vhdx"; });
+
+    // Show progress dialog and optimize VHD files
+    CProgressDlg(items.size(), false, AfxGetMainWnd(), [&](CProgressDlg* pdlg)
+    {
+        for (const auto item : items)
+        {
+            if (pdlg->IsCancelled()) break;
+            OptimizeVhd(item->GetPathLong());
+            pdlg->Increment();
+        }
+    }).DoModal();
+
+    // Refresh items after optimization
     RefreshItem(itemsSelected);
 }
 
@@ -1602,12 +1667,11 @@ void CDirStatDoc::StopScanningEngine(StopReason stopReason)
         ProcessMessagesUntilSignaled([&queue, &stopReason] { queue.CancelExecution(stopReason); });
 
     // Wait for wrapper thread to complete
-    if (m_thread != nullptr)
+    if (m_thread.has_value())
     {
         CWaitCursor waitCursor;
         ProcessMessagesUntilSignaled([this] { m_thread->join(); });
-        delete m_thread;
-        m_thread = nullptr;
+        m_thread.reset();
         m_queues.clear();
     }
 }
@@ -1616,12 +1680,12 @@ void CDirStatDoc::OnContextMenuExplore(UINT nID)
 {
     // get list of paths from items
     std::vector<std::wstring> paths;
-    for (auto& item : CMainFrame::Get()->GetAllSelectedInFocus())
+    for (const auto& item : GetAllSelected())
         paths.push_back(item->GetPath());
 
     // query current context menu
     if (paths.empty()) return;
-    CComPtr contextMenu = GetContextMenu(CMainFrame::Get()->GetSafeHwnd(), paths);
+    const CComPtr contextMenu = GetContextMenu(CMainFrame::Get()->GetSafeHwnd(), paths);
     if (contextMenu == nullptr) return;
 
     // create placeholder menu
@@ -1644,6 +1708,7 @@ void CDirStatDoc::OnContextMenuExplore(UINT nID)
 void CDirStatDoc::StartScanningEngine(std::vector<CItem*> items)
 {
     // Stop any previous executions
+    CWaitCursor wc;
     StopScanningEngine();
 
     // Address conflicts with currently zoomed/selected items
@@ -1669,89 +1734,80 @@ void CDirStatDoc::StartScanningEngine(std::vector<CItem*> items)
     // Do not attempt to update graph while scanning
     CMainFrame::Get()->GetTreeMapView()->SuspendRecalculationDrawing(true);
 
-    // Start a thread so we do not hang the message loop
-    // Lambda captures assume document exists for duration of thread
-    m_thread = new std::thread([this,items] () mutable
+    // If scanning drive(s) just rescan the child nodes
+    if (items.size() == 1 && items.at(0)->IsTypeOrFlag(IT_MYCOMPUTER))
     {
-        // Wait for other threads to finish if this was scheduled in parallel
-        static std::shared_mutex mutex;
-        std::scoped_lock lock(mutex);
+        items.at(0)->ResetScanStartTime();
+        items = items.at(0)->GetChildren();
+    }
 
-        // If scanning drive(s) just rescan the child nodes
-        if (items.size() == 1 && items.at(0)->IsType(IT_MYCOMPUTER))
+    // Remove items in UI thread so we do not conflict with the timer updates
+    const auto selectedItems = GetAllSelected();
+    using VisualInfo = struct { int scrollPosition; bool wasExpanded; bool isSelected; };
+    std::unordered_map<CItem*, VisualInfo> visualInfo;
+    for (auto item : std::vector(items))
+    {
+        // Clear items from duplicates and top list;
+        CFileDupeControl::Get()->RemoveItem(item);
+        CFileTopControl::Get()->RemoveItem(item);
+        CFileSearchControl::Get()->RemoveItem(item);
+
+        // Record current visual arrangement to reapply afterward
+        if (item->IsVisible())
         {
-            items.at(0)->ResetScanStartTime();
-            items = items.at(0)->GetChildren();
+            visualInfo[item].isSelected = std::ranges::find(selectedItems, item) != selectedItems.end();
+            visualInfo[item].wasExpanded = item->IsExpanded();
+            visualInfo[item].scrollPosition = item->GetScrollPosition();
         }
 
-        const auto selectedItems = GetAllSelected();
-        using VisualInfo = struct { int scrollPosition; bool wasExpanded; bool isSelected; };
-        std::unordered_map<CItem *,VisualInfo> visualInfo;
-        CMainFrame::Get()->SetRedraw(FALSE);
-        for (auto item : std::vector(items))
+        // Skip pruning if it is a new element
+        if (!item->IsDone()) continue;
+
+        // Remove item from tree
+        item->ExtensionDataProcessChildren(true);
+        item->UpwardRecalcLastChange();
+        item->UpwardSubtractSizePhysical(item->GetSizePhysicalRaw());
+        item->UpwardSubtractSizeLogical(item->GetSizeLogical());
+        item->UpwardSubtractFiles(item->GetFilesCount());
+        item->UpwardSubtractFolders(item->GetFoldersCount());
+        item->RemoveAllChildren();
+        item->UpwardSetUndone();
+
+        // Child removal will collapse the item, so re-expand it
+        if (visualInfo.contains(item) && item->IsVisible())
+            item->SetExpanded(visualInfo[item].wasExpanded);
+
+        // Handle if item to be refreshed has been removed
+        if (item->IsTypeOrFlag(IT_FILE, IT_DIRECTORY, IT_DRIVE) &&
+            !FinderBasic::DoesFileExist(item->GetFolderPath(),
+                item->IsTypeOrFlag(IT_FILE) ? item->GetName() : std::wstring()))
         {
-            // Clear items from duplicates and top list;
-            CFileDupeControl::Get()->RemoveItem(item);
-            CFileTopControl::Get()->RemoveItem(item);
-            CFileSearchControl::Get()->RemoveItem(item);
+            // Remove item from list so we do not rescan it
+            std::erase(items, item);
 
-            // Record current visual arrangement to reapply afterward
-            if (item->IsVisible())
+            if (item->IsRootItem())
             {
-                visualInfo[item].isSelected = std::ranges::find(selectedItems, item) != selectedItems.end();
-                visualInfo[item].wasExpanded = item->IsExpanded();
-                visualInfo[item].scrollPosition = item->GetScrollPosition();
+                Get()->UnlinkRoot();
+                return;
             }
 
-            // Skip pruning if it is a new element
-            if (!item->IsDone()) continue;
-            item->ExtensionDataProcessChildren(true);
-            item->UpwardRecalcLastChange(true);
-            item->UpwardSubtractSizePhysical(item->GetSizePhysical());
-            item->UpwardSubtractSizeLogical(item->GetSizeLogical());
-            item->UpwardSubtractFiles(item->GetFilesCount());
-            item->UpwardSubtractFolders(item->GetFoldersCount());
-            item->RemoveAllChildren();
-            item->UpwardSetUndone();
-
-            // Child removal will collapse the item, so re-expand it
-            if (visualInfo.contains(item) && item->IsVisible())
-                item->SetExpanded(visualInfo[item].wasExpanded);
-  
-            // Handle if item to be refreshed has been removed
-            if (item->IsType(IT_FILE | IT_DIRECTORY | IT_DRIVE) &&
-                !FinderBasic::DoesFileExist(item->GetFolderPath(),
-                    item->IsType(IT_FILE) ? item->GetName() : std::wstring()))
-            {
-                // Remove item from list so we do not rescan it
-                std::erase(items, item);
-
-                if (item->IsRootItem())
-                {
-                    // Handle deleted root item; this must be launched
-                    // asynchronously since it will end up calling this
-                    // function and could potentially deadlock
-                    std::thread ([] ()
-                    {
-                        GetDocument()->UnlinkRoot();
-                    }).detach();
-                    CMainFrame::Get()->SetRedraw(TRUE);
-                    return;
-                }
-
-                // Handle non-root item by removing from parent
-                item->UpwardSubtractFiles(item->IsType(IT_FILE) ? 1 : 0);
-                item->UpwardSubtractFolders(item->IsType(IT_FILE) ? 0 : 1);
-                item->GetParent()->RemoveChild(item);
-            }
+            // Handle non-root item by removing from parent
+            item->GetParent()->UpwardSubtractFiles(item->IsTypeOrFlag(IT_FILE) ? 1 : 0);
+            item->GetParent()->UpwardSubtractFolders(item->IsTypeOrFlag(IT_FILE) ? 0 : 1);
+            item->GetParent()->RemoveChild(item);
         }
-        CMainFrame::Get()->SetRedraw(TRUE);
+    }
+    CDirStatDoc::InvalidateSelectionCache();
 
+    // Start a thread so we do not hang the message loop during inserts
+    // Lambda captures assume document exists for duration of thread
+    m_thread.emplace([this,items, visualInfo] () mutable
+    {
         // Add items to processing queue
         for (const auto & item : items)
         {
             // Skip any items we should not follow
-            if (!item->IsType(ITF_ROOTITEM) && !CDirStatApp::Get()->IsFollowingAllowed(item->GetReparseTag()))
+            if (!item->IsTypeOrFlag(ITF_ROOTITEM) && !CDirStatApp::Get()->IsFollowingAllowed(item->GetReparseTag()))
             {
                 continue;
             }
@@ -1765,23 +1821,24 @@ void CDirStatDoc::StartScanningEngine(std::vector<CItem*> items)
                 CMainFrame::Get()->UpdateProgress();
             });
 
-            // Separate into separate m_queues per drive
-            const auto volume = GetVolumePathNameEx(item->GetPathLong());
-            if (!volume.empty())
-            {
-                m_queues[volume].Push(item);
-            }
-            else ASSERT(FALSE);
+            // Separate into separate m_queues per volume
+            m_queues[item->GetVolumeRoot()->GetPath()].Push(item);
         }
 
         // Create subordinate threads if there is work to do
         std::unordered_map<std::wstring, FinderNtfsContext> queueContextNtfs;
+        std::unordered_map<std::wstring, FinderBasicContext> queueContextBasic;
         for (auto& queue : m_queues)
         {
-            queueContextNtfs.emplace(queue.first, FinderNtfsContext{});
-            queue.second.StartThreads(COptions::ScanningThreads, [&]()
+            queueContextNtfs.try_emplace(queue.first);
+            queueContextBasic.try_emplace(queue.first);
+
+            auto* queuePtr = &queue.second;
+            auto* ntfsCtx = &queueContextNtfs[queue.first];
+            auto* basicCtx = &queueContextBasic[queue.first];
+            queue.second.StartThreads(COptions::ScanningThreads, [queuePtr, ntfsCtx, basicCtx]()
             {
-                CItem::ScanItems(&queue.second, queueContextNtfs[queue.first]);
+                CItem::ScanItems(queuePtr, *ntfsCtx, *basicCtx);
             });
         }
 
@@ -1800,7 +1857,7 @@ void CDirStatDoc::StartScanningEngine(std::vector<CItem*> items)
         // Restore unknown and freespace items
         for (const auto& item : items)
         {
-            if (!item->IsType(IT_DRIVE)) continue;
+            if (!item->IsTypeOrFlag(IT_DRIVE)) continue;
             
             if (COptions::ShowFreeSpace)
             {
@@ -1811,6 +1868,27 @@ void CDirStatDoc::StartScanningEngine(std::vector<CItem*> items)
                 item->CreateUnknownItem();
             }
         }
+
+        // Handle hardlink counting for the drive
+        auto drives = GetRootItem()->GetDriveItems();
+        if (COptions::ProcessHardlinks) std::for_each(std::execution::par, drives.begin(), drives.end(), [](auto* drive)
+        {
+            // Create hardlink item if it doesn't exist
+            if (drive->FindHardlinksItem() == nullptr)
+            {
+                drive->CreateHardlinksItem();
+            }
+
+            drive->DoHardlinkAdjustment();
+        });
+        else std::for_each(std::execution::par, drives.begin(), drives.end(), [](auto* drive)
+        {
+            // Remove hardlink item if processing is disabled
+            if (drive->FindHardlinksItem() != nullptr)
+            {
+                drive->RemoveHardlinksItem();
+            }
+        });
 
         // If new scan or closing, indicate done and exit early
         if (stopReason == Abort)
@@ -1824,13 +1902,36 @@ void CDirStatDoc::StartScanningEngine(std::vector<CItem*> items)
 
         // Sorting and other finalization tasks
         CItem::ScanItemsFinalize(GetRootItem());
-        GetDocument()->RebuildExtensionData();
+        Get()->RebuildExtensionData();
+
+        // Handle quiet save mode if path is set
+        if (const auto csvPath = CDirStatApp::Get()->GetSaveToCsvPath(); !csvPath.empty())
+        {
+            // Get the document and root item
+            const auto* doc = CDirStatDoc::Get();
+            if (doc == nullptr || !doc->HasRootItem()) ExitProcess(1);
+
+            // Run scan and exit with success == 0 or failure == 1
+            ExitProcess(SaveResults(csvPath, doc->GetRootItem()) ? 0 : 1);
+        }
+
+        // Handle quiet save duplicates mode if path is set
+        if (const auto dupeCsvPath = CDirStatApp::Get()->GetSaveDupesToCsvPath(); !dupeCsvPath.empty())
+        {
+            // Get the duplicate root item
+            CFileDupeControl::Get()->SortItems();
+            const auto* dupeRoot = CFileDupeControl::Get()->GetRootItem();
+            if (dupeRoot == nullptr) ExitProcess(1);
+
+            // Run scan and exit with success == 0 or failure == 1
+            ExitProcess(SaveDuplicates(dupeCsvPath, dupeRoot) ? 0 : 1);
+        }
 
         // Invoke a UI thread to do updates
         CMainFrame::Get()->InvokeInMessageThread([&]
         {
             CMainFrame::Get()->LockWindowUpdate();
-            GetDocument()->UpdateAllViews(nullptr);
+            Get()->UpdateAllViews(nullptr);
             CMainFrame::Get()->SetProgressComplete();
             CMainFrame::Get()->RestoreExtensionView();
             CMainFrame::Get()->RestoreTreeMapView();
@@ -1847,5 +1948,25 @@ void CDirStatDoc::StartScanningEngine(std::vector<CItem*> items)
                 if (visualInfo[item].isSelected) GetFocusControl()->SelectItem(item, false, true);
             }
         });
+
+        // Force heap cleanup after scan
+        (void) _heapmin();
     });
+}
+
+void CDirStatDoc::OnRemoveMarkOfTheWebTags()
+{
+    CWaitCursor wc;
+    const auto& itemsSelected = GetAllSelected();
+    const auto& items = CItem::GetItemsRecursive(itemsSelected);
+
+    CProgressDlg(items.size(), false, AfxGetMainWnd(), [&](CProgressDlg* pdlg)
+    {
+        for (const auto item : items)
+        {
+            if (pdlg->IsCancelled()) break;
+            DeleteFile((item->GetPathLong() + L":Zone.Identifier").c_str());
+            pdlg->Increment();
+        }
+    }).DoModal();
 }
